@@ -1,3 +1,13 @@
+window.addEventListener("load", () => {
+
+let qr = document.getElementById("qrSection")
+
+if(qr){
+qr.style.display = "none"
+}
+
+})
+
 function formatDateTime(dateStr){
 
 let d = new Date(dateStr)
@@ -215,11 +225,64 @@ qr.src = "/generate_qr/" + data.quiz_id
 qr.style.display = "block"
 
 // reset
+// ✅ SHOW QR
+generateQR(data.quiz_id, title, duration)
 questions=[]
 document.getElementById("manualQuestions").innerHTML=""
 document.getElementById("uploadArea").style.display="block"
 }
+function resetQuiz(){
 
+questions = []
+
+document.getElementById("quizTitle").value = ""
+document.getElementById("quizStart").value = ""
+document.getElementById("quizDuration").value = ""
+
+document.getElementById("manualQuestions").innerHTML = ""
+
+document.getElementById("qrSection").style.display = "none"
+
+alert("Ready for new quiz")
+}
+
+function generateQR(quizId, title, duration){
+
+let url = window.location.origin + "/join/" + quizId
+
+let qrApi = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(url)
+
+document.getElementById("qrImage").src = qrApi
+document.getElementById("qrSection").style.display = "block"
+
+document.getElementById("qrTitle").innerText = title
+document.getElementById("qrDetails").innerText = "Duration: " + duration + " mins"
+}
+
+function downloadQR(){
+
+let img = document.getElementById("qrImage")
+
+let link = document.createElement("a")
+link.href = img.src
+link.download = "quiz_qr.png"
+link.click()
+
+}
+function shareQR(){
+
+let img = document.getElementById("qrImage").src
+
+if(navigator.share){
+    navigator.share({
+        title: "Join Quiz",
+        url: img
+    })
+}else{
+    alert("Sharing not supported, please download QR")
+}
+
+}
 // ================= FILE QUESTION UPLOAD =================
 
 async function uploadQuestions(){
