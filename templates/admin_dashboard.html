@@ -121,14 +121,22 @@ No file selected
 
         <p id="qrDetails" style="font-size:13px;"></p>
 
-        <!-- QR BOX -->
-        <div id="qrCanvas" style="
-            margin:15px auto;
-            padding:12px;
-            background:white;
-            border-radius:18px;
-            width:fit-content;
-        "></div>
+       <div style="
+    padding:15px;
+    background:white;
+    border-radius:50%;
+    width:240px;
+    height:240px;
+    margin:auto;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
+">
+
+    <div id="qrCanvas"></div>
+
+</div>
 
         <p style="font-size:12px; margin-top:10px;">
             📱 Scan to Join Quiz
@@ -202,6 +210,7 @@ No file selected
 <!-- LIBRARIES (Placed at END for stability) -->
 <script src="https://cdn.jsdelivr.net/gh/ushelp/EasyQRCodeJS@master/dist/easy.qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://unpkg.com/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
 
 </body>
 </html>
