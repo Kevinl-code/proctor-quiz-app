@@ -4,21 +4,25 @@
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+
 <title>Professor Dashboard</title>
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-<script src="{{ url_for('static', filename='js/admin.js') }}" defer></script>
-<link rel="icon" href="{{ url_for('static', filename='images/favicon3.png') }}" sizes="100X100">
-<link rel="icon" href="{{ url_for('static', filename='images/favicon3.png') }}" sizes="192x192">
+<link rel="icon" href="{{ url_for('static', filename='images/favicon3.png') }}">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/favicon3.png') }}">
+
+<!-- JS -->
 <script src="{{ url_for('static', filename='js/script.js') }}"></script>
-<div style="position:absolute; top:20px; right:20px;">
-    <a href="/logout" class="btn-secondary">Logout</a>
-</div>
+<script src="{{ url_for('static', filename='js/admin.js') }}" defer></script>
 
 </head>
 
 <body>
+
+<!-- ✅ LOGOUT (Moved to BODY) -->
+<div style="position:absolute; top:20px; right:20px; z-index:1000;">
+    <a href="/logout" class="btn-secondary">Logout</a>
+</div>
 
 <div class="auth-container">
 
@@ -29,13 +33,13 @@
 <h2>Professor Dashboard</h2>
 <div class="sub">Manage Quiz & Monitor Students</div>
 
-<!-- ACTION BUTTONS -->
+<!-- ================= ACTION BUTTONS ================= -->
+
 <div class="admin-actions">
 
 <button class="btn-primary" onclick="showPanel('quizPanel')">
 ➕ Create Quiz
 </button>
-
 
 <button class="btn-secondary" onclick="showPanel('activityPanel'); loadActivity();">
 👨‍🎓 Student Activity
@@ -46,9 +50,6 @@
 </button>
 
 </div>
-
-
-<!-- ================= CREATE QUIZ ================= -->
 
 <!-- ================= CREATE QUIZ ================= -->
 
@@ -61,14 +62,11 @@
 <input id="quizTitle" placeholder="Quiz Title">
 
 <div style="display:flex; gap:10px">
-
 <input id="quizStart" type="datetime-local" style="flex:1">
 <input id="quizDuration" placeholder="Duration (minutes)" style="flex:1">
-
 </div>
 
 </div>
-
 
 <!-- MODE SWITCH -->
 <div style="margin-top:15px; display:flex; gap:10px">
@@ -79,73 +77,72 @@
 
 </div>
 
-
 <!-- MANUAL AREA -->
 <div id="manualQuestions" style="margin-top:10px"></div>
-
 
 <!-- UPLOAD AREA -->
 <div id="uploadArea" style="display:none; margin-top:15px">
 
-<div style="display:flex; flex-direction:column; gap:8px">
-
 <input type="file" id="fileUpload" accept=".csv,.txt,.docx,.pdf">
 
-<div id="fileName" style="font-size:13px; color:#94a3b8">
+<div id="fileName" style="font-size:13px; color:#94a3b8; margin-top:5px;">
 No file selected
 </div>
 
-<button class="btn-secondary" onclick="uploadQuestions()">
+<button class="btn-secondary" style="margin-top:8px;" onclick="uploadQuestions()">
 ⬆ Upload Questions
 </button>
 
 </div>
 
-</div>
-
-
 <!-- CREATE BUTTON -->
 <button class="btn-primary" style="margin-top:18px" onclick="createQuiz()">
 🚀 Create Quiz
 </button>
-<!-- QR DISPLAY -->
+
+<!-- ================= QR SECTION ================= -->
+
 <div id="qrSection" style="display:none; margin-top:25px; text-align:center;">
 
-    <div id="qrCard" style="
-        width:260px;
-        margin:auto;
-        padding:15px;
-        border-radius:20px;
-        background: linear-gradient(135deg,#667eea,#764ba2);
-        color:white;
-        box-shadow:0 10px 25px rgba(0,0,0,0.2);
-    ">
-        <p>Quiz ID: <span id="qrId"></span></p>
-        <h3 id="qrTitle" style="margin-bottom:5px;"></h3>
-        <p id="qrDetails" style="font-size:13px;"></p>
+<div id="qrCard" style="
+    width:260px;
+    margin:auto;
+    padding:15px;
+    border-radius:20px;
+    background: linear-gradient(135deg,#667eea,#764ba2);
+    color:white;
+    box-shadow:0 10px 25px rgba(0,0,0,0.2);
+">
 
-        <div id="qrCanvas" style="margin:15px auto;"></div>
+<p style="font-size:12px;">Quiz ID: <span id="qrId"></span></p>
 
-        <!-- LOGO -->
-        <img src="/static/images/logo.png" id="qrLogo" style="
-            width:40px;
-            position:relative;
-            margin-top:-120px;
-            background:white;
-            border-radius:50%;
-            padding:5px;
-        ">
+<h3 id="qrTitle" style="margin-bottom:5px;"></h3>
 
-        <p style="font-size:12px; margin-top:10px;">Scan to Join</p>
+<p id="qrDetails" style="font-size:13px;"></p>
 
-    </div>
+<div id="qrCanvas" style="margin:15px auto;"></div>
 
-    <div style="margin-top:10px;">
-        <button class="btn-secondary" onclick="downloadQR()">⬇ Save PNG</button>
-        <button class="btn-secondary" onclick="resetQuiz()">🔄 Reset</button>
-    </div>
+<!-- LOGO CENTER -->
+<img src="/static/images/logo.png" id="qrLogo" style="
+    width:40px;
+    position:relative;
+    margin-top:-120px;
+    background:white;
+    border-radius:50%;
+    padding:5px;
+">
+
+<p style="font-size:12px; margin-top:10px;">Scan to Join</p>
 
 </div>
+
+<div style="margin-top:10px;">
+<button class="btn-secondary" onclick="downloadQR()">⬇ Save PNG</button>
+<button class="btn-secondary" onclick="resetQuiz()">🔄 Reset</button>
+</div>
+
+</div>
+
 </div>
 
 <!-- ================= STUDENT ACTIVITY ================= -->
@@ -174,7 +171,6 @@ No file selected
 
 </div>
 
-
 <!-- ================= SCOREBOARD ================= -->
 
 <div id="scorePanel" class="panel">
@@ -202,9 +198,11 @@ No file selected
 </div>
 
 </div>
-
 </div>
+
+<!-- LIBRARIES (Placed at END for stability) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
 </body>
 </html>
