@@ -109,21 +109,43 @@ No file selected
 🚀 Create Quiz
 </button>
 <!-- QR DISPLAY -->
-<div id="qrSection" style="margin-top:20px; text-align:center; display:none;">
+<div id="qrSection" style="display:none; margin-top:25px; text-align:center;">
 
-    <h3 id="qrTitle"></h3>
-    <p id="qrDetails"></p>
+    <div id="qrCard" style="
+        width:260px;
+        margin:auto;
+        padding:15px;
+        border-radius:20px;
+        background: linear-gradient(135deg,#667eea,#764ba2);
+        color:white;
+        box-shadow:0 10px 25px rgba(0,0,0,0.2);
+    ">
 
-    <img id="qrImage" style="width:180px; margin-top:10px;">
+        <h3 id="qrTitle" style="margin-bottom:5px;"></h3>
+        <p id="qrDetails" style="font-size:13px;"></p>
+
+        <div id="qrCanvas" style="margin:15px auto;"></div>
+
+        <!-- LOGO -->
+        <img src="/static/images/logo.png" id="qrLogo" style="
+            width:40px;
+            position:relative;
+            margin-top:-120px;
+            background:white;
+            border-radius:50%;
+            padding:5px;
+        ">
+
+        <p style="font-size:12px; margin-top:10px;">Scan to Join</p>
+
+    </div>
 
     <div style="margin-top:10px;">
-        <button class="btn-secondary" onclick="downloadQR()">⬇ Save</button>
-        <button class="btn-secondary" onclick="shareQR()">📤 Share</button>
+        <button class="btn-secondary" onclick="downloadQR()">⬇ Save PNG</button>
         <button class="btn-secondary" onclick="resetQuiz()">🔄 Reset</button>
     </div>
 
 </div>
-
 </div>
 
 <!-- ================= STUDENT ACTIVITY ================= -->
@@ -182,6 +204,6 @@ No file selected
 </div>
 
 </div>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </body>
 </html>
