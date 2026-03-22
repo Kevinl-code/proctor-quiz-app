@@ -1,6 +1,6 @@
-Flask==2.3.2
-pymongo[srv]==4.6.1
-dnspython==3.8.1
+Flask
+pymongo[srv]
+dnspython
 pandas
 python-docx
 pdfplumber
