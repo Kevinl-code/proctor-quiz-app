@@ -178,48 +178,67 @@ function generateQR(quizId, title, duration){
 
 let url = window.location.origin + "/join/" + quizId
 
-let qrBox = document.getElementById("qrCanvas")
-qrBox.innerHTML = ""
+// clear previous QR
+document.getElementById("qrCanvas").innerHTML = ""
 
-// ✅ CREATE QR
-new QRCode(qrBox, {
+// 🔥 CREATE PREMIUM QR
+const qr = new QRCodeStyling({
 
-    text: url,
-    width: 200,
-    height: 200,
-    drawer: "svg",  
+    width: 220,
+    height: 220,
+    type: "svg",
+    data: url,
 
-    // 🔥 IMPORTANT (fix logo + design)
-    correctLevel: QRCode.CorrectLevel.H,  // REQUIRED for logo
-    quietZone: 10,
+    // 🎯 DOT STYLE
+    dotsOptions: {
+        color: "#111827",
+        type: "rounded"   // 🔥 rounded dots
+    },
 
-    // 🎯 DOT STYLE (modern)
-    dotScale: 0.9,
+    // 🧱 CORNER (EYES)
+    cornersSquareOptions: {
+        type: "extra-rounded",  // 🔥 rounded squares
+        color: "#111827"
+    },
 
-    // 🎨 COLORS
-    colorDark: "#111827",
-    colorLight: "#ffffff",
+    cornersDotOptions: {
+        type: "dot",  // 🔥 inner eye dot
+        color: "#111827"
+    },
 
-    // 🧱 CORNER STYLE
-    PO: "#111827",
-    PI: "#111827",
+    // 🎨 BACKGROUND
+    backgroundOptions: {
+        color: "#ffffff"
+    },
 
-    // 🖼 LOGO CENTER FIX
-    logo: "/static/images/logo.png",
-    logoWidth: 70,
-    logoHeight: 70,
-    logoBackgroundColor: "#ffffff",
-    logoBackgroundTransparent: false
+    // 🖼 LOGO
+    image: "/static/images/logo.png",
+    imageOptions: {
+        crossOrigin: "anonymous",
+        margin: 6
+    },
+
+    // 🔐 ERROR CORRECTION
+    qrOptions: {
+        errorCorrectionLevel: "H"
+    }
 
 })
+
+// append QR
+qr.append(document.getElementById("qrCanvas"))
 
 // SET DETAILS
 document.getElementById("qrId").innerText = quizId
 document.getElementById("qrTitle").innerText = title
 document.getElementById("qrDetails").innerText = "Duration: " + duration + " mins"
 
-// SHOW
+// SHOW CARD
 document.getElementById("qrSection").style.display = "block"
+
+// store globally for download
+window.qrInstance = qr
+
 }
 // ================= RESET =================
 
@@ -242,19 +261,16 @@ alert("Ready for new quiz")
 
 
 // ================= DOWNLOAD QR =================
-
 function downloadQR(){
 
-let card = document.getElementById("qrCard")
+if(window.qrInstance){
 
-html2canvas(card).then(canvas => {
+    window.qrInstance.download({
+        name: "quiz_qr",
+        extension: "png"
+    })
 
-    let link = document.createElement("a")
-    link.download = "quiz_qr.png"
-    link.href = canvas.toDataURL()
-    link.click()
-
-})
+}
 
 }
 
