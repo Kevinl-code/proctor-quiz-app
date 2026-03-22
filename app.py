@@ -70,7 +70,6 @@ def login():
 def logout():
     session.clear()
     return redirect("/login")
-
 # ================= SIGNUP =================
 @app.route("/signup",methods=["GET","POST"])
 def signup():
@@ -186,6 +185,19 @@ def attend_quiz(quiz_id):
         return redirect("/admin")
 
     return render_template("student_quiz.html")
+
+@app.route("/join/<quiz_id>")
+def join_quiz(quiz_id):
+
+    user = session.get("user")
+
+    if not user:
+        return redirect("/login")
+
+    if teacher_pattern.match(user):
+        return redirect("/admin")
+
+    return redirect(f"/quiz/{quiz_id}")
 
 # ================= FILE UPLOAD =================
 @app.route("/upload_questions", methods=["POST"])
