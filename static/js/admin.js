@@ -1,12 +1,12 @@
+// ================= INIT =================
+
 window.addEventListener("load", () => {
-
-let qr = document.getElementById("qrSection")
-
-if(qr){
-qr.style.display = "none"
-}
-
+    let qr = document.getElementById("qrSection")
+    if(qr) qr.style.display = "none"
 })
+
+
+// ================= FORMAT DATE =================
 
 function formatDateTime(dateStr){
 
@@ -25,41 +25,35 @@ let minutes = String(d.getMinutes()).padStart(2,'0')
 
 let ampm = hours >= 12 ? "PM" : "AM"
 
-hours = hours % 12
-hours = hours ? hours : 12
+hours = hours % 12 || 12
 
 return `${dayName}, ${day}-${month}-${year} ${hours}:${minutes} ${ampm}`
-
 }
 
-// ================= PANEL CONTROL =================
+
+// ================= PANEL =================
 
 function showPanel(panel){
 
-document.getElementById("quizPanel").style.display="none"
-document.getElementById("activityPanel").style.display="none"
-document.getElementById("scorePanel").style.display="none"
+["quizPanel","activityPanel","scorePanel"].forEach(id=>{
+    document.getElementById(id).style.display="none"
+})
 
 document.getElementById(panel).style.display="block"
 
 }
 
 
-// ================= OPEN QUIZ PANEL =================
-
-function openQuiz(){
-showPanel("quizPanel")
-}
-
-
-// ================= QUESTION STORAGE =================
+// ================= STORAGE =================
 
 let questions=[]
 
 
-// ================= MANUAL QUESTION MODE =================
+// ================= MANUAL MODE =================
 
 function manualMode(){
+
+document.getElementById("uploadArea").style.display="none"
 
 document.getElementById("manualQuestions").innerHTML=`
 
@@ -77,9 +71,7 @@ document.getElementById("manualQuestions").innerHTML=`
 <button class="btn-secondary" onclick="addQuestion()">Add Question</button>
 
 </div>
-
-`;
-
+`
 }
 
 
@@ -87,43 +79,18 @@ document.getElementById("manualQuestions").innerHTML=`
 
 function uploadMode(){
 
-document.getElementById("manualQuestions").innerHTML=`
+document.getElementById("manualQuestions").innerHTML=""
+document.getElementById("uploadArea").style.display="block"
 
-<div style="margin-top:15px">
-
-<input type="file" id="fileUpload" accept=".csv,.txt,.docx,.pdf">
-
-<div id="fileName" style="margin-top:5px;font-size:13px;color:#666">
-No file selected
-</div>
-
-<button class="btn-secondary" onclick="uploadQuestions()">Upload</button>
-
-</div>
-
-`;
-
-
-// show selected filename
-setTimeout(()=>{
-
-let input=document.getElementById("fileUpload")
+let input = document.getElementById("fileUpload")
 
 if(input){
-
-input.addEventListener("change",function(){
-
-let file=this.files[0]
-
-if(file){
-document.getElementById("fileName").innerText="Selected: "+file.name
+input.onchange = function(){
+    let file = this.files[0]
+    document.getElementById("fileName").innerText =
+        file ? "Selected: "+file.name : "No file selected"
 }
-
-})
-
 }
-
-},100)
 
 }
 
@@ -137,32 +104,22 @@ let a=document.getElementById("a").value.trim()
 let b=document.getElementById("b").value.trim()
 let c=document.getElementById("c").value.trim()
 let d=document.getElementById("d").value.trim()
-let ans=document.getElementById("ans").value.trim()
+let ans=document.getElementById("ans").value.trim().toUpperCase()
 
 if(!q || !a || !b || !c || !d || !ans){
-
-alert("Please fill all fields")
+alert("Fill all fields")
 return
-
 }
 
 questions.push({
-
 question:q,
 options:[a,b,c,d],
-answer:ans.toUpperCase()
-
+answer:ans
 })
 
-alert("Question Added Successfully")
+alert("Question Added")
 
-// clear inputs
-document.getElementById("q").value=""
-document.getElementById("a").value=""
-document.getElementById("b").value=""
-document.getElementById("c").value=""
-document.getElementById("d").value=""
-document.getElementById("ans").value=""
+document.querySelectorAll("#manualQuestions input").forEach(i=>i.value="")
 
 }
 
@@ -173,245 +130,194 @@ async function createQuiz(){
 
 let title=document.getElementById("quizTitle").value.trim()
 let start=document.getElementById("quizStart").value
-let duration=document.getElementById("quizDuration").value
+let duration=parseInt(document.getElementById("quizDuration").value)
 
 if(!title || !start || !duration){
-
-alert("Please fill quiz title, start time and duration")
+alert("Fill all quiz details")
 return
-
 }
 
 if(questions.length===0){
-
-alert("Please add or upload questions first")
+alert("Add or upload questions first")
 return
-
 }
 
-// calculate END TIME
-let startDate = new Date(start)
-let endDate = new Date(startDate.getTime() + duration*60000)
+// calculate end time
+let startDate=new Date(start)
+let endDate=new Date(startDate.getTime() + duration*60000)
 
 let res=await fetch("/create_quiz",{
-
 method:"POST",
-
-headers:{
-"Content-Type":"application/json"
-},
-
+headers:{"Content-Type":"application/json"},
 body:JSON.stringify({
-
-title:title,
-start:start,
+title,
+start,
 end:endDate.toISOString(),
-duration:duration,
-questions:questions
-
+duration,
+questions
+})
 })
 
-})
-
-
-let data = await res.json()
+let data=await res.json()
 
 alert(data.msg)
 
-// ✅ SHOW QR HERE
-let qr = document.getElementById("qrImage")
-
-qr.src = "/generate_qr/" + data.quiz_id
-qr.style.display = "block"
+// ✅ GENERATE QR
+generateQR(data.quiz_id, title, duration)
 
 // reset
-// ✅ SHOW QR
-generateQR(data.quiz_id, title, duration)
 questions=[]
 document.getElementById("manualQuestions").innerHTML=""
-document.getElementById("uploadArea").style.display="block"
+document.getElementById("uploadArea").style.display="none"
+
 }
-function resetQuiz(){
 
-questions = []
-document.getElementById("qrId").innerText = quizId
-document.getElementById("quizTitle").value = ""
-document.getElementById("quizStart").value = ""
-document.getElementById("quizDuration").value = ""
 
-document.getElementById("manualQuestions").innerHTML = ""
-
-document.getElementById("qrSection").style.display = "none"
-
-alert("Ready for new quiz")
-}
+// ================= QR GENERATION =================
 
 function generateQR(quizId, title, duration){
 
 let url = window.location.origin + "/join/" + quizId
 
-// clear old QR
-document.getElementById("qrCanvas").innerHTML = ""
+document.getElementById("qrCanvas").innerHTML=""
 
 // create QR
-let qr = new QRCode(document.getElementById("qrCanvas"), {
-    text: url,
-    width: 180,
-    height: 180,
-    colorDark: "#1a1a1a",
-    colorLight: "#ffffff",
-    correctLevel: QRCode.CorrectLevel.H
+new QRCode(document.getElementById("qrCanvas"),{
+text:url,
+width:180,
+height:180,
+colorDark:"#1a1a1a",
+colorLight:"#ffffff",
+correctLevel:QRCode.CorrectLevel.H
 })
 
-// set details
-document.getElementById("qrTitle").innerText = title
-document.getElementById("qrDetails").innerText = "Duration: " + duration + " mins"
+// details
+document.getElementById("qrTitle").innerText=title
+document.getElementById("qrDetails").innerText="Duration: "+duration+" mins"
+document.getElementById("qrId").innerText=quizId
 
-// show section
-document.getElementById("qrSection").style.display = "block"
+document.getElementById("qrSection").style.display="block"
 
 }
+
+
+// ================= RESET =================
+
+function resetQuiz(){
+
+questions=[]
+
+document.getElementById("quizTitle").value=""
+document.getElementById("quizStart").value=""
+document.getElementById("quizDuration").value=""
+
+document.getElementById("manualQuestions").innerHTML=""
+document.getElementById("uploadArea").style.display="none"
+
+document.getElementById("qrSection").style.display="none"
+
+alert("Ready for new quiz")
+
+}
+
+
+// ================= DOWNLOAD QR =================
+
 function downloadQR(){
 
-let card = document.getElementById("qrCard")
+let card=document.getElementById("qrCard")
 
-html2canvas(card).then(canvas => {
-
-    let link = document.createElement("a")
-    link.download = "quiz_qr.png"
-    link.href = canvas.toDataURL()
-    link.click()
-
+html2canvas(card).then(canvas=>{
+let link=document.createElement("a")
+link.download="quiz_qr.png"
+link.href=canvas.toDataURL()
+link.click()
 })
 
 }
-function shareQR(){
 
-let img = document.getElementById("qrImage").src
 
-if(navigator.share){
-    navigator.share({
-        title: "Join Quiz",
-        url: img
-    })
-}else{
-    alert("Sharing not supported, please download QR")
-}
-
-}
-// ================= FILE QUESTION UPLOAD =================
+// ================= UPLOAD =================
 
 async function uploadQuestions(){
 
-let fileInput = document.getElementById("fileUpload")
-
-if(!fileInput){
-alert("Upload field not found")
-return
-}
-
-let file = fileInput.files[0]
+let file=document.getElementById("fileUpload").files[0]
 
 if(!file){
-alert("Please select a file")
+alert("Select file")
 return
 }
 
-let formData = new FormData()
-formData.append("file", file)
+let formData=new FormData()
+formData.append("file",file)
 
-try{
-
-let res = await fetch("/upload_questions",{
+let res=await fetch("/upload_questions",{
 method:"POST",
 body:formData
 })
 
-let data = await res.json()
+let data=await res.json()
 
 if(!Array.isArray(data)){
-alert("Invalid file format")
+alert("Invalid format")
 return
 }
 
-questions = data
+questions=data
 
-alert(data.length + " Questions Uploaded Successfully")
-
-}catch(err){
-
-alert("Upload failed")
-console.log(err)
+alert(data.length+" Questions Uploaded")
 
 }
 
-}
 
-document.getElementById("qrImage").src ="/generate_qr/" + data.quiz_id
-
-// ================= LOAD STUDENT ACTIVITY =================
+// ================= ACTIVITY =================
 
 async function loadActivity(){
 
 showPanel("activityPanel")
 
 let res=await fetch("/get_activity")
-
 let data=await res.json()
 
 let table=document.querySelector("#activityTable tbody")
-
 table.innerHTML=""
 
 if(data.length===0){
-
-table.innerHTML=`<tr><td colspan="7">No Activity Found</td></tr>`
+table.innerHTML=`<tr><td colspan="7">No Activity</td></tr>`
 return
-
 }
 
 data.forEach(x=>{
-
 table.innerHTML+=`
-
 <tr>
-
-<td>${x.name || "-"}</td>
-<td>${x.student_id || "-"}</td>
-<td>${x.question_answered || "-"}</td>
-<td>${x.correct || "-"}</td>
-<td>${x.wrong || "-"}</td>
-<td>${x.skipped || "-"}</td>
-<td>${x.violation_type || "-"}</td>
-
-</tr>
-
-`
-
+<td>${x.name||"-"}</td>
+<td>${x.student_id||"-"}</td>
+<td>${x.question_answered||"-"}</td>
+<td>${x.correct||"-"}</td>
+<td>${x.wrong||"-"}</td>
+<td>${x.skipped||"-"}</td>
+<td>${x.violation_type||"-"}</td>
+</tr>`
 })
 
 }
 
 
-// ================= LOAD SCOREBOARD =================
+// ================= SCORE =================
 
 async function loadScore(){
 
 showPanel("scorePanel")
 
 let res=await fetch("/get_scores")
-
 let data=await res.json()
 
 let table=document.querySelector("#scoreTable tbody")
-
 table.innerHTML=""
 
 if(data.length===0){
-
-table.innerHTML=`<tr><td colspan="7">No Scores Available</td></tr>`
+table.innerHTML=`<tr><td colspan="7">No Scores</td></tr>`
 return
-
 }
 
 data.sort((a,b)=>b.correct-a.correct)
@@ -419,27 +325,20 @@ data.sort((a,b)=>b.correct-a.correct)
 data.forEach((x,i)=>{
 
 let badge="Bronze"
-
 if(i===0) badge="🥇"
 else if(i===1) badge="🥈"
 else if(i===2) badge="🥉"
 
 table.innerHTML+=`
-
 <tr>
-
 <td>${i+1}</td>
-<td>${x.name}</td>
-<td>${x.student_id}</td>
+<td>${x.name||"-"}</td>
+<td>${x.student_id||"-"}</td>
 <td>${x.correct}</td>
 <td>${x.wrong}</td>
 <td>${x.result}</td>
 <td>${badge}</td>
-
-</tr>
-
-`
-
+</tr>`
 })
 
 }
