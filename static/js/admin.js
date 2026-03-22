@@ -194,7 +194,7 @@ new QRCode(qrBox, {
     quietZone: 10,
 
     // 🎯 DOT STYLE (modern)
-    dotScale: 0.4,
+    dotScale: 0.9,
 
     // 🎨 COLORS
     colorDark: "#111827",
@@ -206,8 +206,8 @@ new QRCode(qrBox, {
 
     // 🖼 LOGO CENTER FIX
     logo: "/static/images/logo.png",
-    logoWidth: 40,
-    logoHeight: 40,
+    logoWidth: 70,
+    logoHeight: 70,
     logoBackgroundColor: "#ffffff",
     logoBackgroundTransparent: false
 
