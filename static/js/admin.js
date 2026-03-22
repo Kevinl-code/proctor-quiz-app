@@ -174,33 +174,49 @@ document.getElementById("uploadArea").style.display="none"
 
 
 // ================= QR GENERATION =================
-
 function generateQR(quizId, title, duration){
 
 let url = window.location.origin + "/join/" + quizId
 
-document.getElementById("qrCanvas").innerHTML=""
+// clear old QR
+document.getElementById("qrCanvas").innerHTML = ""
 
-// create QR
-new QRCode(document.getElementById("qrCanvas"),{
-text:url,
-width:180,
-height:180,
-colorDark:"#1a1a1a",
-colorLight:"#ffffff",
-correctLevel:QRCode.CorrectLevel.H
+// create QR using EasyQRCode
+new QRCode(document.getElementById("qrCanvas"), {
+
+    text: url,
+    width: 200,
+    height: 200,
+
+    // DOT STYLE
+    dotScale: 0.5,
+
+    // COLORS
+    colorDark: "#1a1a1a",
+    colorLight: "#ffffff",
+
+    // CORNER STYLE
+    PO: "#1a1a1a", // outer
+    PI: "#1a1a1a", // inner
+
+    // LOGO INSIDE QR
+    logo: "/static/images/logo.png",
+    logoWidth: 50,
+    logoHeight: 50,
+    logoBackgroundColor: "#ffffff",
+    logoBackgroundTransparent: false
+
 })
 
-// details
-document.getElementById("qrTitle").innerText=title
-document.getElementById("qrDetails").innerText="Duration: "+duration+" mins"
-document.getElementById("qrId").innerText=quizId
+// SET DETAILS
+document.getElementById("qrId").innerText = quizId
+document.getElementById("qrTitle").innerText = title
+document.getElementById("qrDetails").innerText = "Duration: " + duration + " mins"
 
-document.getElementById("qrSection").style.display="block"
+// SHOW QR
+document.getElementById("qrSection").style.display = "block"
 
 }
-
-
 // ================= RESET =================
 
 function resetQuiz(){
@@ -225,17 +241,18 @@ alert("Ready for new quiz")
 
 function downloadQR(){
 
-let card=document.getElementById("qrCard")
+let card = document.getElementById("qrCard")
 
-html2canvas(card).then(canvas=>{
-let link=document.createElement("a")
-link.download="quiz_qr.png"
-link.href=canvas.toDataURL()
-link.click()
+html2canvas(card).then(canvas => {
+
+    let link = document.createElement("a")
+    link.download = "quiz_qr.png"
+    link.href = canvas.toDataURL()
+    link.click()
+
 })
 
 }
-
 
 // ================= UPLOAD =================
 
