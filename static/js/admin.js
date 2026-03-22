@@ -250,23 +250,39 @@ function generateQR(quizId, title, duration){
 
 let url = window.location.origin + "/join/" + quizId
 
-let qrApi = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(url)
+// clear old QR
+document.getElementById("qrCanvas").innerHTML = ""
 
-document.getElementById("qrImage").src = qrApi
-document.getElementById("qrSection").style.display = "block"
+// create QR
+let qr = new QRCode(document.getElementById("qrCanvas"), {
+    text: url,
+    width: 180,
+    height: 180,
+    colorDark: "#000000",
+    colorLight: "#ffffff",
+    correctLevel: QRCode.CorrectLevel.H
+})
 
+// set details
 document.getElementById("qrTitle").innerText = title
 document.getElementById("qrDetails").innerText = "Duration: " + duration + " mins"
-}
 
+// show section
+document.getElementById("qrSection").style.display = "block"
+
+}
 function downloadQR(){
 
-let img = document.getElementById("qrImage")
+let card = document.getElementById("qrCard")
 
-let link = document.createElement("a")
-link.href = img.src
-link.download = "quiz_qr.png"
-link.click()
+html2canvas(card).then(canvas => {
+
+    let link = document.createElement("a")
+    link.download = "quiz_qr.png"
+    link.href = canvas.toDataURL()
+    link.click()
+
+})
 
 }
 function shareQR(){
