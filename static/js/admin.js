@@ -234,7 +234,7 @@ document.getElementById("uploadArea").style.display="block"
 function resetQuiz(){
 
 questions = []
-
+document.getElementById("qrId").innerText = quizId
 document.getElementById("quizTitle").value = ""
 document.getElementById("quizStart").value = ""
 document.getElementById("quizDuration").value = ""
