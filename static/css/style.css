@@ -1,0 +1,493 @@
+/* ===================== FONTS ===================== */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap');
+
+/* ===================== VARIABLES ===================== */
+:root {
+  --primary: #6366f1;
+  --secondary: #a855f7;
+  --accent: #22d3ee;
+  --bg-dark: #020617;
+  --glass: rgba(255, 255, 255, 0.03);
+  --border: rgba(255, 255, 255, 0.1);
+}
+
+/* ===================== GLOBAL ===================== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  width: 100%;
+  min-height: 100dvh;
+  background-color: var(--bg-dark);
+  background-image: radial-gradient(circle at 50% 110%, #1e1b4b, transparent);
+  color: white;
+  overflow: hidden;          /* ❌ no scroll */
+  touch-action: none;   
+     }     /* ❌ no pinch zoom */
+* {
+  user-select: none;
+}
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+/* ===================== GLASS CARD ===================== */
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--glass);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid var(--border);
+  border-radius: 35px;
+  padding: 30px;
+  box-shadow: 0 40px 100px rgba(0,0,0,0.6);
+}
+
+/* Admin wider */
+.card.wide {
+  max-width: 1100px;
+}
+
+/* ===================== HEADERS ===================== */
+h2 {
+  font-size: 22px;
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 6px;
+}
+
+.sub {
+  text-align: center;
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 20px;
+}
+
+/* ===================== INPUTS ===================== */
+input, select {
+  width: 100%;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.05);
+  color: white;
+  font-size: 14px;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.3);
+}
+/* ================= AUTH PAGE LAYOUT ================= */
+
+.auth-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+/* logo above card */
+.page-logo {
+  width: 200px;
+  height: auto;
+  margin-bottom: 18px;
+  opacity: 1;
+  filter: drop-shadow(0 0 10px rgba(246, 246, 246, 0.975));
+  animation: logoGlow 2.2s ease-in-out infinite;
+}
+@keyframes logoGlow {
+
+  0% {
+    filter: drop-shadow(0 0 6px #22d3ee);
+  }
+
+  50% {
+    filter: drop-shadow(0 0 10px #6366f1)
+            drop-shadow(0 0 13px #a855f7);
+  }
+
+  100% {
+    filter: drop-shadow(0 0 6px #22d3ee);
+  }
+
+}
+
+/* responsive adjustment */
+@media (max-width:480px){
+
+  .page-logo{
+    width:70px;
+    margin-bottom:14px;
+  }
+
+}
+/* ===================== BUTTONS ===================== */
+button {
+  width: 100%;
+  padding: 16px;
+  border-radius: 18px;
+  border: none;
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: 0.25s;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: white;
+}
+
+.btn-secondary {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  color: white;
+}
+
+button:hover {
+  transform: translateY(-2px);
+}
+/* ===================== ROLE SELECTION ===================== */
+/* ===================== ROLE SELECTION ===================== */
+/* ===================== ROLE SELECTION ===================== */
+
+.role-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.role-card {
+  position: relative;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.05);
+  cursor: pointer;
+  transition: 0.3s;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* Hide radio */
+.role-card input[type="radio"] {
+  display: none;
+}
+
+/* ===== PROFESSOR SELECTED ===== */
+.role-card.professor:has(input:checked) {
+  border-color: #3b82f6;
+  box-shadow: 0 0 14px rgba(59,130,246,0.6);
+}
+
+.role-card.professor:has(input:checked) span {
+  color: #3b82f6;
+  text-shadow: 0 0 8px rgba(59,130,246,0.8);
+}
+
+/* ===== STUDENT SELECTED ===== */
+.role-card.student:has(input:checked) {
+  border-color: #22c55e;
+  box-shadow: 0 0 14px rgba(34,197,94,0.6);
+}
+
+.role-card.student:has(input:checked) span {
+  color: #22c55e;
+  text-shadow: 0 0 8px rgba(34,197,94,0.8);
+}
+.role-card:hover {
+  transform: translateY(-2px);
+  background: rgba(255,255,255,0.08);
+}
+
+/* ===================== TEXT ===================== */
+#msg {
+  text-align: center;
+  font-size: 13px;
+  margin-top: 10px;
+  color: #f87171;
+}
+
+/* ===================== ADMIN TABLE ===================== */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+th, td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+
+/* ===================== SPINNER ===================== */
+/* ===== SPLASH LOADER ===== */
+#splash {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-dark);
+  z-index: 1000;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* container */
+.logo-container {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  margin-bottom: 30px;
+}
+
+/* spinning ring */
+.spinner {
+  position: absolute;
+  inset: -8px;
+
+  border: 3px solid transparent;
+  border-top: 3px solid var(--accent);
+  border-right: 3px solid var(--primary);
+
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* logo holder */
+.logo-circle {
+  width: 100%;
+  height: 100%;
+
+  background: rgba(255,255,255,0.05);
+  border-radius: 50%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  overflow: hidden;
+
+  border: 1px solid var(--border);
+
+  box-shadow: 0 0 40px rgba(99,102,241,0.2);
+}
+
+/* logo itself */
+.main-logo {
+  width: 300px;
+  height: 200px;
+  object-fit: contain;
+}
+
+/* animation */
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}
+/* ===================== MOBILE ===================== */
+@media (max-width: 480px) {
+  .card {
+    padding: 22px;
+    border-radius: 26px;
+  }
+
+  h2 {
+    font-size: 20px;
+  }
+}
+.admin-actions{
+display:flex;
+gap:12px;
+margin-bottom:20px;
+flex-wrap:wrap;
+}
+
+.panel{
+display:none;
+margin-top:20px;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+margin-top:10px;
+}
+
+th,td{
+padding:10px;
+border-bottom:1px solid var(--border);
+text-align:center;
+}
+
+tbody tr:hover{
+background:rgba(255,255,255,0.05);
+}
+.quiz-carousel{
+
+display:flex;
+gap:16px;
+overflow-x:auto;
+padding:10px 0;
+
+}
+
+.quiz-card{
+
+min-width:220px;
+padding:16px;
+border-radius:18px;
+background:rgba(255,255,255,0.05);
+border:1px solid var(--border);
+box-shadow:0 10px 40px rgba(0,0,0,0.4);
+
+}
+.option-card {
+  display:block;
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  margin-bottom:10px;
+  cursor:pointer;
+}
+
+.option-card input {
+  margin-right:10px;
+}
+
+/* ===================== RESPONSIVE FIX ===================== */
+
+/* Allow vertical scroll */
+html, body {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Main container */
+.auth-container {
+  width: 100%;
+  min-height: 100dvh;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+
+  padding: 20px 12px;
+}
+
+/* Logo fix */
+.page-logo {
+  width: 120px;
+  max-width: 40vw;
+  height: auto;
+  margin-bottom: 18px;
+}
+
+/* Card responsive */
+.card {
+  width: 100%;
+  max-width: 420px;
+}
+
+/* Wide card responsive */
+.card.wide {
+  max-width: 1000px;
+  width: 100%;
+}
+
+/* Prevent content cut */
+.dashboard,
+.panel {
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* Tables scroll on small screens */
+table {
+  min-width: 600px;
+}
+
+/* Quiz cards scroll safe */
+.quiz-carousel {
+  overflow-x: auto;
+  scroll-behavior: smooth;
+}
+
+/* Buttons wrap */
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Inputs responsive */
+input, select, button {
+  font-size: 14px;
+}
+
+/* ===================== MOBILE ===================== */
+@media (max-width: 768px) {
+
+  body {
+    align-items: flex-start;
+  }
+
+  .card {
+    border-radius: 20px;
+    padding: 20px;
+  }
+
+  .card.wide {
+    max-width: 100%;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
+
+  .page-logo {
+    width: 90px;
+  }
+
+  .admin-actions {
+    flex-direction: column;
+  }
+
+}
+
+/* ===================== EXTRA SMALL ===================== */
+@media (max-width: 480px) {
+
+  .page-logo {
+    width: 70px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  h2 {
+    font-size: 16px;
+  }
+
+}

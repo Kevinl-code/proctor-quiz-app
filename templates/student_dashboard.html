@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+
+<title>Student Dashboard</title>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+<link rel="icon" href="{{ url_for('static', filename='images/favicon2.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='images/favicon2.png') }}">
+
+<style>
+
+/* ================= DASHBOARD ================= */
+
+.quiz-carousel{
+display:flex;
+gap:16px;
+overflow-x:auto;
+padding:10px 0;
+scrollbar-width:none;
+}
+.quiz-carousel::-webkit-scrollbar{
+display:none;
+}
+
+.quiz-card{
+min-width:260px;
+padding:18px;
+border-radius:20px;
+background: rgba(255,255,255,0.04);
+border:1px solid var(--border);
+backdrop-filter: blur(20px);
+transition:0.3s;
+}
+
+.quiz-card:hover{
+transform: translateY(-5px);
+box-shadow:0 10px 30px rgba(0,0,0,0.5);
+}
+
+.quiz-card h3{
+margin-bottom:8px;
+}
+
+.quiz-card p{
+font-size:13px;
+color:#94a3b8;
+margin:4px 0;
+}
+
+.status{
+font-size:12px;
+padding:4px 10px;
+border-radius:12px;
+display:inline-block;
+margin-bottom:8px;
+}
+
+.upcoming{ background:#1e3a8a; color:#93c5fd; }
+.ongoing{ background:#14532d; color:#86efac; }
+.completed{ background:#78350f; color:#fcd34d; }
+.expired{ background:#7f1d1d; color:#fca5a5; }
+
+.quiz-card button{
+margin-top:10px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="auth-container">
+
+<img src="/static/images/logo.png" class="page-logo">
+
+<div class="card wide">
+
+<h2>Student Dashboard</h2>
+<div class="sub">Attend your quizzes</div>
+
+<!-- ================= UPCOMING ================= -->
+<h3>Upcoming</h3>
+<div id="upcomingQuiz" class="quiz-carousel"></div>
+
+<!-- ================= ONGOING ================= -->
+<h3>Ongoing</h3>
+<div id="ongoingQuiz" class="quiz-carousel"></div>
+
+<!-- ================= COMPLETED ================= -->
+<h3>Completed</h3>
+<div id="completedQuiz" class="quiz-carousel"></div>
+
+<!-- ================= EXPIRED ================= -->
+<h3>Expired</h3>
+<div id="expiredQuiz" class="quiz-carousel"></div>
+
+</div>
+</div>
+
+<script>
+
+// ================= DATE FORMAT =================
+
+function formatDateTime(dt){
+
+let d = new Date(dt)
+
+let options = {
+weekday:'short',
+day:'2-digit',
+month:'short',
+year:'numeric',
+hour:'2-digit',
+minute:'2-digit'
+}
+
+return d.toLocaleString('en-IN', options)
+
+}
+
+
+// ================= LOAD QUIZZES =================
+
+async function loadQuizzes(){
+
+let res = await fetch("/get_quizzes")
+let data = await res.json()
+
+let upcoming = document.getElementById("upcomingQuiz")
+let ongoing = document.getElementById("ongoingQuiz")
+let completed = document.getElementById("completedQuiz")
+let expired = document.getElementById("expiredQuiz")
+
+upcoming.innerHTML=""
+ongoing.innerHTML=""
+completed.innerHTML=""
+expired.innerHTML=""
+
+let now = new Date()
+
+data.forEach(q=>{
+
+let start = new Date(q.start_time)
+let end = new Date(q.end_time)
+
+let status = ""
+let btn = ""
+
+if(now < start){
+status="upcoming"
+btn=`<button class="btn-secondary" disabled>Not Started</button>`
+}
+else if(now >= start && now <= end){
+
+if(q.attempted){
+status="completed"
+btn=`<button class="btn-secondary" disabled>Submitted</button>`
+}else{
+status="ongoing"
+btn=`<button class="btn-primary" onclick="startQuiz('${q.quiz_id}')">Start Quiz</button>`
+}
+
+}
+else{
+
+if(q.attempted){
+status="completed"
+btn=`<button class="btn-secondary" disabled>Submitted</button>`
+}else{
+status="expired"
+btn=`<button class="btn-secondary" disabled>Missed</button>`
+}
+
+}
+
+// CARD UI
+let card = `
+<div class="quiz-card">
+
+<span class="status ${status}">${status.toUpperCase()}</span>
+
+<h3>${q.title}</h3>
+
+<p>Start : ${formatDateTime(q.start_time)}</p>
+<p>End : ${formatDateTime(q.end_time)}</p>
+
+<p>Duration : ${q.duration} min</p>
+
+${btn}
+
+</div>
+`
+
+if(status==="upcoming") upcoming.innerHTML+=card
+if(status==="ongoing") ongoing.innerHTML+=card
+if(status==="completed") completed.innerHTML+=card
+if(status==="expired") expired.innerHTML+=card
+
+})
+
+}
+
+
+// ================= START QUIZ =================
+
+function startQuiz(id){
+window.location = "/quiz/" + id
+}
+
+
+// ================= AUTO REFRESH =================
+
+setInterval(loadQuizzes, 10000) // refresh every 10 sec
+
+loadQuizzes()
+
+</script>
+
+</body>
+</html>

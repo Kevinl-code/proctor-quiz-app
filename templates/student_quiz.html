@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+
+<title>Quiz</title>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<script src="{{ url_for('static', filename='js/quiz.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+</head>
+
+<body>
+
+<div class="auth-container">
+
+<img src="/static/images/logo.png" class="page-logo">
+
+<div class="card wide">
+
+<!-- HEADER -->
+<div style="display:flex; justify-content:space-between; align-items:center">
+
+<h2 id="quizTitle">Quiz</h2>
+
+<div id="timer" style="font-weight:800; color:#22c55e">
+00:00
+</div>
+
+</div>
+
+<div class="sub">Answer all questions carefully</div>
+
+<!-- QUESTION -->
+<div id="questionBox" style="margin-top:20px">
+
+<h3 id="questionText"></h3>
+
+<div id="optionsBox" style="margin-top:15px"></div>
+
+</div>
+
+<!-- NAVIGATION -->
+<div style="display:flex; justify-content:space-between; margin-top:20px">
+
+<button id="prevBtn" class="btn-secondary" onclick="prevQuestion()">⬅ Previous</button>
+
+<button id="nextBtn" class="btn-primary" onclick="nextQuestion()">Next ➡</button>
+
+<button id="submitBtn" class="btn-primary" style="display:none" onclick="confirmSubmit()">Submit</button>
+
+</div>
+
+</div>
+
+</div>
+
+</body>
+</html>

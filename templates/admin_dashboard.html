@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Professor Dashboard</title>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<script src="{{ url_for('static', filename='js/admin.js') }}" defer></script>
+<link rel="icon" href="{{ url_for('static', filename='images/favicon3.png') }}" sizes="100X100">
+<link rel="icon" href="{{ url_for('static', filename='images/favicon3.png') }}" sizes="192x192">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='images/favicon3.png') }}">
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+</head>
+
+<body>
+
+<div class="auth-container">
+
+<img src="/static/images/logo.png" class="page-logo">
+
+<div class="card wide">
+
+<h2>Professor Dashboard</h2>
+<div class="sub">Manage Quiz & Monitor Students</div>
+
+<!-- ACTION BUTTONS -->
+<div class="admin-actions">
+
+<button class="btn-primary" onclick="showPanel('quizPanel')">
+➕ Create Quiz
+</button>
+
+<!-- ✅ QR IMAGE DISPLAY -->
+<div style="text-align:center; margin-top:15px">
+    <img id="qrImage" style="width:160px; display:none;">
+</div>
+
+<button class="btn-secondary" onclick="showPanel('activityPanel'); loadActivity();">
+👨‍🎓 Student Activity
+</button>
+
+<button class="btn-secondary" onclick="showPanel('scorePanel'); loadScore();">
+🏆 Score Board
+</button>
+
+</div>
+
+
+<!-- ================= CREATE QUIZ ================= -->
+
+<!-- ================= CREATE QUIZ ================= -->
+
+<div id="quizPanel" class="panel">
+
+<h3>Create Quiz</h3>
+
+<div style="display:flex; flex-direction:column; gap:10px; margin-top:10px">
+
+<input id="quizTitle" placeholder="Quiz Title">
+
+<div style="display:flex; gap:10px">
+
+<input id="quizStart" type="datetime-local" style="flex:1">
+<input id="quizDuration" placeholder="Duration (minutes)" style="flex:1">
+
+</div>
+
+</div>
+
+
+<!-- MODE SWITCH -->
+<div style="margin-top:15px; display:flex; gap:10px">
+
+<button class="btn-secondary" onclick="manualMode()">✍ Manual Questions</button>
+
+<button class="btn-secondary" onclick="uploadMode()">📂 Upload File</button>
+
+</div>
+
+
+<!-- MANUAL AREA -->
+<div id="manualQuestions" style="margin-top:10px"></div>
+
+
+<!-- UPLOAD AREA -->
+<div id="uploadArea" style="display:none; margin-top:15px">
+
+<div style="display:flex; flex-direction:column; gap:8px">
+
+<input type="file" id="fileUpload" accept=".csv,.txt,.docx,.pdf">
+
+<div id="fileName" style="font-size:13px; color:#94a3b8">
+No file selected
+</div>
+
+<button class="btn-secondary" onclick="uploadQuestions()">
+⬆ Upload Questions
+</button>
+
+</div>
+
+</div>
+
+
+<!-- CREATE BUTTON -->
+<button class="btn-primary" style="margin-top:18px" onclick="createQuiz()">
+🚀 Create Quiz
+</button>
+
+</div>
+
+<!-- ================= STUDENT ACTIVITY ================= -->
+
+<div id="activityPanel" class="panel">
+
+<h3>Student Activity</h3>
+
+<table id="activityTable">
+
+<thead>
+<tr>
+<th>Name</th>
+<th>ID</th>
+<th>Answered</th>
+<th>Correct</th>
+<th>Wrong</th>
+<th>Skipped</th>
+<th>Violation</th>
+</tr>
+</thead>
+
+<tbody></tbody>
+
+</table>
+
+</div>
+
+
+<!-- ================= SCOREBOARD ================= -->
+
+<div id="scorePanel" class="panel">
+
+<h3>Score Board</h3>
+
+<table id="scoreTable">
+
+<thead>
+<tr>
+<th>Rank</th>
+<th>Name</th>
+<th>ID</th>
+<th>Correct</th>
+<th>Wrong</th>
+<th>Result</th>
+<th>Badge</th>
+</tr>
+</thead>
+
+<tbody></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+</body>
+</html>

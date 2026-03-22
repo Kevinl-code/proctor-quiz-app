@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Signup</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}" sizes="32x32">
+<link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}" sizes="192x192">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='images/favicon.png') }}">
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</head>
+<body>
+    <div id="splash">
+
+    <div class="logo-container">
+
+        <div class="spinner"></div>
+
+        <div class="logo-circle">
+            <img src="/static/images/logo.png" class="main-logo">
+        </div>
+
+    </div>
+</div>
+            <div class="auth-container">
+
+    <img src="/static/images/logo.png" class="page-logo">
+
+    <div class="card">
+        <h2>PQDS</h2>
+        <div class="sub">Create your account</div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div id="msg">
+                {% for category, message in messages %}
+                    {{ message }}
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST">
+        <input type="text" name="name" placeholder="Full Name" required>
+        <input type="email" name="email" placeholder="Email" required>
+        <input type="password" name="password" placeholder="Password" required>
+
+       <div class="role-options">
+  <label class="role-card professor">
+    <input type="radio" name="role" value="professor" required="">
+    <span>Professor</span>
+  </label>
+
+  <label class="role-card student">
+    <input type="radio" name="role" value="student" required>
+    <span>Student</span>
+  </label>
+</div>
+
+
+
+
+        <button class="btn-primary" type="submit">Sign Up</button>
+    </form>
+
+    <p style="text-align:center; margin-top:12px;">Already have an account? 
+        <a href="/login" style="color: var(--accent);">Login</a>
+    </p>
+</div>
+</body>
+</html>

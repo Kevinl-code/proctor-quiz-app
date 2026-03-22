@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Quiz Info</title>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}" sizes="32x32">
+<link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}" sizes="192x192">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='images/favicon.png') }}">
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+
+</head>
+
+<body>
+
+<div class="auth-container">
+
+<img src="/static/images/logo.png" class="page-logo">
+
+<div class="card">
+
+<h2>{{ quiz.title }}</h2>
+<div class="sub">Quiz Details</div>
+
+<p><b>Start:</b> {{ quiz.start_time }}</p>
+<p><b>End:</b> {{ quiz.end_time }}</p>
+<p><b>Duration:</b> {{ quiz.duration }} mins</p>
+
+<button class="btn-primary" onclick="startQuiz()">
+Start Quiz
+</button>
+
+</div>
+
+</div>
+
+<script>
+
+function startQuiz(){
+window.location = "/quiz/{{ quiz.quiz_id }}"
+}
+
+</script>
+
+</body>
+</html>
