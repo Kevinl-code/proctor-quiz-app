@@ -258,7 +258,7 @@ let qr = new QRCode(document.getElementById("qrCanvas"), {
     text: url,
     width: 180,
     height: 180,
-    colorDark: "#000000",
+    colorDark: "#1a1a1a",
     colorLight: "#ffffff",
     correctLevel: QRCode.CorrectLevel.H
 })
