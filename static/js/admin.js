@@ -178,31 +178,36 @@ function generateQR(quizId, title, duration){
 
 let url = window.location.origin + "/join/" + quizId
 
-// clear old QR
-document.getElementById("qrCanvas").innerHTML = ""
+let qrBox = document.getElementById("qrCanvas")
+qrBox.innerHTML = ""
 
-// create QR using EasyQRCode
-new QRCode(document.getElementById("qrCanvas"), {
+// ✅ CREATE QR
+new QRCode(qrBox, {
 
     text: url,
     width: 200,
     height: 200,
+    drawer: "svg",  
 
-    // DOT STYLE
-    dotScale: 0.5,
+    // 🔥 IMPORTANT (fix logo + design)
+    correctLevel: QRCode.CorrectLevel.H,  // REQUIRED for logo
+    quietZone: 10,
 
-    // COLORS
-    colorDark: "#1a1a1a",
+    // 🎯 DOT STYLE (modern)
+    dotScale: 0.4,
+
+    // 🎨 COLORS
+    colorDark: "#111827",
     colorLight: "#ffffff",
 
-    // CORNER STYLE
-    PO: "#1a1a1a", // outer
-    PI: "#1a1a1a", // inner
+    // 🧱 CORNER STYLE
+    PO: "#111827",
+    PI: "#111827",
 
-    // LOGO INSIDE QR
+    // 🖼 LOGO CENTER FIX
     logo: "/static/images/logo.png",
-    logoWidth: 50,
-    logoHeight: 50,
+    logoWidth: 40,
+    logoHeight: 40,
     logoBackgroundColor: "#ffffff",
     logoBackgroundTransparent: false
 
@@ -213,9 +218,8 @@ document.getElementById("qrId").innerText = quizId
 document.getElementById("qrTitle").innerText = title
 document.getElementById("qrDetails").innerText = "Duration: " + duration + " mins"
 
-// SHOW QR
+// SHOW
 document.getElementById("qrSection").style.display = "block"
-
 }
 // ================= RESET =================
 
