@@ -109,7 +109,21 @@ No file selected
 <div style="text-align:center; margin-top:15px">
    <img id="qrImage" style="width: 160px;display: block;margin-left: 400px;" src="/generate_qr/2ce393ff">
 </div>
+<!-- QR DISPLAY -->
+<div id="qrSection" style="margin-top:20px; text-align:center; display:none;">
 
+    <h3 id="qrTitle"></h3>
+    <p id="qrDetails"></p>
+
+    <img id="qrImage" style="width:180px; margin-top:10px;">
+
+    <div style="margin-top:10px;">
+        <button class="btn-secondary" onclick="downloadQR()">⬇ Save</button>
+        <button class="btn-secondary" onclick="shareQR()">📤 Share</button>
+        <button class="btn-secondary" onclick="resetQuiz()">🔄 Reset</button>
+    </div>
+
+</div>
 
 </div>
 
