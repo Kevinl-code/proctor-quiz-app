@@ -1,3 +1,0 @@
-Python is a programming language | Language | Snake | Car | Food | A
-2+2=? | 3 | 4 | 5 | 6 | B
-Capital of India? | Mumbai | Delhi | Chennai | Kolkata | B
