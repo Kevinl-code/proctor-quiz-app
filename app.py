@@ -198,112 +198,74 @@ def join_quiz(quiz_id):
         return redirect("/admin")
 
     return redirect(f"/quiz/{quiz_id}")
-
-# ================= FILE UPLOAD =================
+  # ================= FILE UPLOAD =================
 @app.route("/upload_questions", methods=["POST"])
 def upload_questions():
 
     file = request.files["file"]
     filename = file.filename.lower()
+    parsed = []
 
-    parsed_questions = []
-
-    # ================= CSV =================
+    # CSV
     if filename.endswith(".csv"):
-
         df = pd.read_csv(file)
-
-        for _, row in df.iterrows():
-            parsed_questions.append({
-                "question": str(row["question"]),
-                "options": [row["A"], row["B"], row["C"], row["D"]],
-                "answer": str(row["answer"]).strip().upper()
+        for _, r in df.iterrows():
+            parsed.append({
+                "question": r["question"],
+                "options": [r["A"], r["B"], r["C"], r["D"]],
+                "answer": str(r["answer"]).upper()
             })
 
-    # ================= TXT =================
+    # TXT
     elif filename.endswith(".txt"):
-
-        content = file.read().decode("utf-8")
-        lines = content.split("\n")
-
+        lines = file.read().decode().split("\n")
         for line in lines:
-            parts = line.strip().split("|")
-
-            if len(parts) == 6:
-                parsed_questions.append({
+            parts = line.split("|")
+            if len(parts)==6:
+                parsed.append({
                     "question": parts[0],
                     "options": parts[1:5],
-                    "answer": parts[5].strip().upper()
+                    "answer": parts[5].upper()
                 })
 
-    # ================= DOCX =================
+    # DOCX
     elif filename.endswith(".docx"):
-
         doc = docx.Document(file)
+        lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+        parsed.extend(parse_block(lines))
 
-        temp = []
-
-        for para in doc.paragraphs:
-            text = para.text.strip()
-
-            if text:
-                temp.append(text)
-
-        parsed_questions.extend(parse_block_questions(temp))
-
-    # ================= PDF =================
+    # PDF
     elif filename.endswith(".pdf"):
-
         with pdfplumber.open(file) as pdf:
+            lines=[]
+            for p in pdf.pages:
+                t=p.extract_text()
+                if t: lines+=t.split("\n")
+        parsed.extend(parse_block(lines))
 
-            temp = []
+    return jsonify(parsed)
 
-            for page in pdf.pages:
-                text = page.extract_text()
+# ================= PARSER =================
+def parse_block(lines):
 
-                if text:
-                    temp.extend(text.split("\n"))
-
-        parsed_questions.extend(parse_block_questions(temp))
-
-    else:
-        return jsonify({"error": "Unsupported file format"}), 400
-
-    return jsonify(parsed_questions)
-def parse_block_questions(lines):
-
-    questions = []
-    current = {}
+    out=[]
+    q={}
 
     for line in lines:
 
-        line = line.strip()
-
-        if not line:
-            continue
-
-        # Question line
         if "?" in line:
-            if current:
-                questions.append(current)
-                current = {}
+            if q: out.append(q)
+            q={"question":line,"options":[]}
 
-            current["question"] = line
-            current["options"] = []
+        elif line.startswith(("A.","B.","C.","D.")):
+            q["options"].append(line[2:].strip())
 
-        # Options
-        elif line.startswith(("A.", "B.", "C.", "D.")):
-            current.setdefault("options", []).append(line[2:].strip())
-
-        # Answer
         elif line.lower().startswith("answer"):
-            ans = line.split(":")[-1].strip().upper()
-            current["answer"] = ans
+            q["answer"]=line.split(":")[-1].strip().upper()
 
-    if current:
-        questions.append(current)
+    if q: out.append(q)
 
-    return questions
+    return out
 # ================= GET QUIZZES =================
 @app.route("/get_quizzes")
 def get_quizzes():
