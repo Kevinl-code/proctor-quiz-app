@@ -204,35 +204,106 @@ def join_quiz(quiz_id):
 def upload_questions():
 
     file = request.files["file"]
-    filename = file.filename
+    filename = file.filename.lower()
 
     parsed_questions = []
 
-    # CSV
+    # ================= CSV =================
     if filename.endswith(".csv"):
+
         df = pd.read_csv(file)
 
         for _, row in df.iterrows():
             parsed_questions.append({
-                "question": row["question"],
+                "question": str(row["question"]),
                 "options": [row["A"], row["B"], row["C"], row["D"]],
-                "answer": row["answer"]
+                "answer": str(row["answer"]).strip().upper()
             })
 
-    # TXT
+    # ================= TXT =================
     elif filename.endswith(".txt"):
-        for line in file:
-            parts = line.decode().strip().split("|")
+
+        content = file.read().decode("utf-8")
+        lines = content.split("\n")
+
+        for line in lines:
+            parts = line.strip().split("|")
 
             if len(parts) == 6:
                 parsed_questions.append({
                     "question": parts[0],
                     "options": parts[1:5],
-                    "answer": parts[5]
+                    "answer": parts[5].strip().upper()
                 })
 
-    return jsonify(parsed_questions)
+    # ================= DOCX =================
+    elif filename.endswith(".docx"):
 
+        doc = docx.Document(file)
+
+        temp = []
+
+        for para in doc.paragraphs:
+            text = para.text.strip()
+
+            if text:
+                temp.append(text)
+
+        parsed_questions.extend(parse_block_questions(temp))
+
+    # ================= PDF =================
+    elif filename.endswith(".pdf"):
+
+        with pdfplumber.open(file) as pdf:
+
+            temp = []
+
+            for page in pdf.pages:
+                text = page.extract_text()
+
+                if text:
+                    temp.extend(text.split("\n"))
+
+        parsed_questions.extend(parse_block_questions(temp))
+
+    else:
+        return jsonify({"error": "Unsupported file format"}), 400
+
+    return jsonify(parsed_questions)
+def parse_block_questions(lines):
+
+    questions = []
+    current = {}
+
+    for line in lines:
+
+        line = line.strip()
+
+        if not line:
+            continue
+
+        # Question line
+        if "?" in line:
+            if current:
+                questions.append(current)
+                current = {}
+
+            current["question"] = line
+            current["options"] = []
+
+        # Options
+        elif line.startswith(("A.", "B.", "C.", "D.")):
+            current.setdefault("options", []).append(line[2:].strip())
+
+        # Answer
+        elif line.lower().startswith("answer"):
+            ans = line.split(":")[-1].strip().upper()
+            current["answer"] = ans
+
+    if current:
+        questions.append(current)
+
+    return questions
 # ================= GET QUIZZES =================
 @app.route("/get_quizzes")
 def get_quizzes():
