@@ -198,53 +198,68 @@ def join_quiz(quiz_id):
         return redirect("/admin")
 
     return redirect(f"/quiz/{quiz_id}")
-  # ================= FILE UPLOAD =================
+    
+# ================= FILE UPLOAD =================
 @app.route("/upload_questions", methods=["POST"])
 def upload_questions():
 
-    file = request.files["file"]
+    file = request.files.get("file")
+
+    if not file:
+        return jsonify({"error": "No file uploaded"}), 400
+
     filename = file.filename.lower()
     parsed = []
 
-    # CSV
+    # ================= CSV =================
     if filename.endswith(".csv"):
         df = pd.read_csv(file)
+
         for _, r in df.iterrows():
             parsed.append({
-                "question": r["question"],
+                "question": str(r["question"]),
                 "options": [r["A"], r["B"], r["C"], r["D"]],
-                "answer": str(r["answer"]).upper()
+                "answer": str(r["answer"]).strip().upper()
             })
 
-    # TXT
+    # ================= TXT =================
     elif filename.endswith(".txt"):
-        lines = file.read().decode().split("\n")
+        lines = file.read().decode("utf-8").split("\n")
+
         for line in lines:
-            parts = line.split("|")
-            if len(parts)==6:
+            parts = line.strip().split("|")
+
+            if len(parts) == 6:
                 parsed.append({
                     "question": parts[0],
                     "options": parts[1:5],
-                    "answer": parts[5].upper()
+                    "answer": parts[5].strip().upper()
                 })
 
-    # DOCX
+    # ================= DOCX =================
     elif filename.endswith(".docx"):
         doc = docx.Document(file)
-        lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-        parsed.extend(parse_block(lines))
 
-    # PDF
+        lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+        parsed.extend(parse_block_questions(lines))
+
+    # ================= PDF =================
     elif filename.endswith(".pdf"):
         with pdfplumber.open(file) as pdf:
-            lines=[]
+
+            lines = []
+
             for p in pdf.pages:
-                t=p.extract_text()
-                if t: lines+=t.split("\n")
-        parsed.extend(parse_block(lines))
+                text = p.extract_text()
+                if text:
+                    lines.extend(text.split("\n"))
+
+        parsed.extend(parse_block_questions(lines))
+
+    else:
+        return jsonify({"error": "Unsupported file"}), 400
 
     return jsonify(parsed)
-
 # ================= PARSER =================
 def parse_block_questions(lines):
 
@@ -252,6 +267,7 @@ def parse_block_questions(lines):
     current = None
 
     for line in lines:
+
         line = line.strip()
 
         if not line:
@@ -280,7 +296,7 @@ def parse_block_questions(lines):
                 if ans in ["A","B","C","D"]:
                     current["answer"] = ans
 
-    # last question
+    # LAST QUESTION
     if current and len(current["options"]) == 4 and current["answer"]:
         result.append(current)
 
@@ -346,7 +362,6 @@ def submit_quiz():
     data=request.json
     student_id = session.get("user")
 
-    # prevent multiple attempts
     existing = submissions.find_one({
         "quiz_id": data["quiz_id"],
         "student_id": student_id
@@ -355,28 +370,27 @@ def submit_quiz():
     if existing:
         return jsonify({"msg":"Already submitted"})
 
-    student_id = session.get("user")
     name = session.get("name")
 
     submissions.insert_one({
         "quiz_id": data["quiz_id"],
         "student_id": student_id,
-        "name": name,   # ✅ FIX
+        "name": name,
         "correct":data["correct"],
         "wrong":data["wrong"],
         "skipped":data["skipped"]
     })
 
-
     scores.insert_one({
         "quiz_id": data["quiz_id"],
         "student_id": student_id,
-        "name": name,   # ✅ FIX
+        "name": name,
         "correct":data["correct"],
         "wrong":data["wrong"],
         "skipped":data["skipped"],
         "result":"completed"
     })
+
     activity.insert_one({
         "quiz_id": data["quiz_id"],
         "student_id": student_id,
@@ -389,7 +403,8 @@ def submit_quiz():
         "violation_count": len(data.get("violations",[])),
         "timestamp": datetime.now()
     })
-    
+
+    return jsonify({"msg":"submitted successfully"})
 
 # ================= ACTIVITY =================
 @app.route("/get_activity")
