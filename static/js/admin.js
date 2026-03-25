@@ -300,9 +300,19 @@ alert("Invalid format")
 return
 }
 
-questions=data
+questions = data.filter(q => 
+    q.question && 
+    Array.isArray(q.options) && 
+    q.options.length === 4 && 
+    q.answer
+)
 
-alert(data.length+" Questions Uploaded")
+if(questions.length === 0){
+    alert("No valid questions found in file")
+    return
+}
+
+alert(questions.length + " Valid Questions Uploaded")
 
 }
 
