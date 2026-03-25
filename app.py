@@ -246,26 +246,45 @@ def upload_questions():
     return jsonify(parsed)
 
 # ================= PARSER =================
-def parse_block(lines):
+def parse_block_questions(lines):
 
-    out=[]
-    q={}
+    result = []
+    current = None
 
     for line in lines:
+        line = line.strip()
 
+        if not line:
+            continue
+
+        # QUESTION
         if "?" in line:
-            if q: out.append(q)
-            q={"question":line,"options":[]}
+            if current and len(current["options"]) == 4 and current["answer"]:
+                result.append(current)
 
-        elif line.startswith(("A.","B.","C.","D.")):
-            q["options"].append(line[2:].strip())
+            current = {
+                "question": line,
+                "options": [],
+                "answer": ""
+            }
 
-        elif line.lower().startswith("answer"):
-            q["answer"]=line.split(":")[-1].strip().upper()
+        # OPTIONS
+        elif line.startswith(("A.", "B.", "C.", "D.")):
+            if current:
+                current["options"].append(line[2:].strip())
 
-    if q: out.append(q)
+        # ANSWER
+        elif "answer" in line.lower():
+            if current:
+                ans = line.split(":")[-1].strip().upper()
+                if ans in ["A","B","C","D"]:
+                    current["answer"] = ans
 
-    return out
+    # last question
+    if current and len(current["options"]) == 4 and current["answer"]:
+        result.append(current)
+
+    return result
 # ================= GET QUIZZES =================
 @app.route("/get_quizzes")
 def get_quizzes():
