@@ -171,7 +171,7 @@ document.getElementById("manualQuestions").innerHTML=""
 document.getElementById("uploadArea").style.display="none"
 
 }
-
+console.log("Sending Questions:", questions)
 
 // ================= QR GENERATION =================
 function generateQR(quizId, title, duration){
