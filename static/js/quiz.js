@@ -79,7 +79,7 @@ let q = questions[current]
 document.getElementById("questionText").innerText =
 (current+1)+". "+q.question
 
-let optionsHTML = ""
+let optionsHTML = '<div class="options-grid">';
 
 q.options.forEach((opt)=>{
 
@@ -99,6 +99,8 @@ onchange="selectAnswer('${opt}')">
 `
 
 })
+
+optionsHTML += '</div>';
 
 document.getElementById("optionsBox").innerHTML = optionsHTML
 
