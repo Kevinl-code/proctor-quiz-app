@@ -497,3 +497,51 @@ input, select, button {
     top: 50%;
     transform: translate(-50%, -50%);
 }
+/* GRID */
+.options-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+/* OPTION CARD */
+.option-card {
+  position: relative;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.05);
+  cursor: pointer;
+  transition: 0.3s;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* HIDE RADIO */
+.option-card input[type="radio"] {
+  display: none;
+}
+
+/* DEFAULT TEXT */
+.option-card span {
+  color: #ccc;
+  transition: 0.3s;
+}
+
+/* SELECTED EFFECT */
+.option-card:has(input:checked) {
+  border-color: #22c55e;
+  box-shadow: 0 0 14px rgba(34,197,94,0.6);
+  background: rgba(34,197,94,0.08);
+}
+
+.option-card:has(input:checked) span {
+  color: #22c55e;
+  font-weight: 700;
+}
+
+/* HOVER */
+.option-card:hover {
+  transform: translateY(-2px);
+  background: rgba(255,255,255,0.08);
+}
