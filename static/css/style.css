@@ -545,3 +545,14 @@ input, select, button {
   transform: translateY(-2px);
   background: rgba(255,255,255,0.08);
 }
+/* JS fallback selected */
+.option-card.selected {
+  border-color: #22c55e;
+  box-shadow: 0 0 14px rgba(34,197,94,0.6);
+  background: rgba(34,197,94,0.08);
+}
+
+.option-card.selected span {
+  color: #22c55e;
+  font-weight: 700;
+}
