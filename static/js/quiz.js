@@ -118,10 +118,18 @@ current === questions.length-1 ? "inline-block" : "none"
 
 
 // ================= SELECT =================
-function selectAnswer(val){
-answers[current] = val
-}
+function selectAnswer(value) {
+  answers[current] = value;
 
+  document.querySelectorAll(".option-card").forEach(card => {
+    card.classList.remove("selected");
+
+    let input = card.querySelector("input");
+    if(input.value === value){
+      card.classList.add("selected");
+    }
+  });
+}
 
 // ================= NAV =================
 function nextQuestion(){
