@@ -11,6 +11,7 @@ import io
 import qrcode
 from io import BytesIO
 from flask import send_file
+from flask import send_from_directory
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
@@ -89,6 +90,12 @@ def signup():
         return redirect("/login")
 
     return render_template("signup.html")
+
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static/images'),
+                               'favicon.png', mimetype='image/vnd.microsoft.icon')
 
 # ================= ADMIN =================
 @app.route("/admin")
