@@ -12,6 +12,8 @@ import qrcode
 from io import BytesIO
 from flask import send_file
 from flask import send_from_directory
+from twilio.twiml.messaging_response import MessagingResponse
+import requests
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
@@ -434,6 +436,68 @@ def get_scores():
         else: x["badge"]="Bronze"
 
     return jsonify(data)
+
+
+@app.route("/whatsapp", methods=["POST"])
+def whatsapp_webhook():
+
+    msg = request.form.get("Body")
+    sender = request.form.get("From")
+
+    media_url = request.form.get("MediaUrl0")
+
+    resp = MessagingResponse()
+
+    # ================= FILE RECEIVED =================
+    if media_url:
+
+        file_data = requests.get(media_url).content
+
+        # save file
+        with open("temp_file", "wb") as f:
+            f.write(file_data)
+
+        # 👇 CALL YOUR EXISTING PARSER
+        parsed_questions = []
+
+        # Example: assume PDF
+        import pdfplumber
+
+        with pdfplumber.open("temp_file") as pdf:
+            lines = []
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    lines.extend(text.split("\n"))
+
+        parsed_questions = parse_block_questions(lines)
+
+        resp.message(f"✅ File received! {len(parsed_questions)} questions extracted.")
+
+        return str(resp)
+
+    # ================= TEXT COMMAND =================
+    if msg and "create quiz" in msg.lower():
+
+        title = msg.replace("create quiz","").strip()
+
+        quiz_id = str(uuid.uuid4())[:8]
+
+        quiz.insert_one({
+            "quiz_id": quiz_id,
+            "title": title,
+            "start_time": datetime.now().isoformat(),
+            "end_time": (datetime.now()+timedelta(minutes=30)).isoformat(),
+            "duration": 30
+        })
+
+        reply = f"✅ Quiz Created!\n\nTitle: {title}\n\nJoin:\n{request.host_url}join/{quiz_id}"
+
+        resp.message(reply)
+        return str(resp)
+
+    resp.message("Send: Create Quiz <Title> OR upload file")
+    return str(resp)
 
 
 
