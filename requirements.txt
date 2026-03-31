@@ -6,3 +6,5 @@ python-docx
 pdfplumber
 qrcode
 gunicorn
+requests
+twilio
