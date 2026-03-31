@@ -440,6 +440,11 @@ def get_scores():
 
 
 
+from twilio.twiml.messaging_response import MessagingResponse
+import requests
+
+whatsapp_sessions = db["whatsapp_sessions"]
+
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp_webhook():
 
@@ -451,9 +456,11 @@ def whatsapp_webhook():
     media_url = request.form.get("MediaUrl0")
     media_type = request.form.get("MediaContentType0")
 
-    # ================= FILE HANDLING =================
-    if media_url:
+    # ================= GET USER SESSION =================
+    user = whatsapp_sessions.find_one({"sender": sender})
 
+    # ================= FILE UPLOAD =================
+    if media_url:
         try:
             file_data = requests.get(media_url).content
             filename = "temp_file"
@@ -463,34 +470,28 @@ def whatsapp_webhook():
 
             parsed_questions = []
 
-            # PDF
             if "pdf" in media_type:
                 import pdfplumber
                 with pdfplumber.open(filename) as pdf:
                     lines = []
-                    for page in pdf.pages:
-                        text = page.extract_text()
-                        if text:
-                            lines.extend(text.split("\n"))
+                    for p in pdf.pages:
+                        t = p.extract_text()
+                        if t: lines += t.split("\n")
                 parsed_questions = parse_block_questions(lines)
 
-            # DOCX
             elif "word" in media_type or "docx" in media_type:
                 import docx
                 doc = docx.Document(filename)
                 lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
                 parsed_questions = parse_block_questions(lines)
 
-            # TXT
             elif "text" in media_type:
-                lines = file_data.decode("utf-8").split("\n")
+                lines = file_data.decode().split("\n")
                 parsed_questions = parse_block_questions(lines)
 
-            # CSV
             elif "csv" in media_type:
                 import pandas as pd
                 df = pd.read_csv(filename)
-
                 for _, r in df.iterrows():
                     parsed_questions.append({
                         "question": str(r["question"]),
@@ -499,55 +500,72 @@ def whatsapp_webhook():
                     })
 
             else:
-                resp.message("❌ Unsupported file type")
+                resp.message("❌ Unsupported file")
                 return str(resp)
 
-            # SAVE QUESTIONS TEMP
-            session["uploaded_questions"] = parsed_questions
+            # SAVE QUESTIONS
+            whatsapp_sessions.update_one(
+                {"sender": sender},
+                {"$set": {"questions": parsed_questions}},
+                upsert=True
+            )
 
-            resp.message(f"✅ {len(parsed_questions)} questions uploaded.\nNow type: create quiz")
+            resp.message(f"✅ {len(parsed_questions)} questions uploaded.\nType: create quiz")
             return str(resp)
 
-        except Exception as e:
-            resp.message("❌ Error processing file")
+        except:
+            resp.message("❌ File processing error")
             return str(resp)
 
     # ================= TEXT FLOW =================
+
     if not msg:
-        resp.message("Send a message or upload file")
+        resp.message("Send message")
         return str(resp)
 
     msg_lower = msg.lower()
 
-    # STEP 1: START
+    # STEP 1
     if "create quiz" in msg_lower:
-        session["quiz_flow"] = True
-        session["quiz_data"] = {}
+        whatsapp_sessions.update_one(
+            {"sender": sender},
+            {"$set": {"step": "title", "data": {}}},
+            upsert=True
+        )
         resp.message("📘 Enter Quiz Title")
         return str(resp)
 
     # STEP 2: TITLE
-    if session.get("quiz_flow") and "title" not in session["quiz_data"]:
-        session["quiz_data"]["title"] = msg
-        resp.message("⏱ Enter Duration (in minutes)")
+    if user and user.get("step") == "title":
+        whatsapp_sessions.update_one(
+            {"sender": sender},
+            {"$set": {"step": "duration", "data.title": msg}}
+        )
+        resp.message("⏱ Enter Duration (minutes)")
         return str(resp)
 
-    # STEP 3: DURATION ✅ FIXED
-    if session.get("quiz_flow") and "duration" not in session["quiz_data"]:
+    # STEP 3: DURATION ✅ FIXED FOREVER
+    if user and user.get("step") == "duration":
         try:
             duration = int(msg)
-            session["quiz_data"]["duration"] = duration
+
+            whatsapp_sessions.update_one(
+                {"sender": sender},
+                {"$set": {"step": "start", "data.duration": duration}}
+            )
+
             resp.message("📅 Enter Start Time (YYYY-MM-DD HH:MM)")
             return str(resp)
+
         except:
             resp.message("❌ Enter valid number like 20")
             return str(resp)
 
     # STEP 4: START TIME
-    if session.get("quiz_flow") and "start" not in session["quiz_data"]:
+    if user and user.get("step") == "start":
         try:
             start = datetime.strptime(msg, "%Y-%m-%d %H:%M")
-            duration = session["quiz_data"]["duration"]
+            duration = user["data"]["duration"]
 
             end = start + timedelta(minutes=duration)
             quiz_id = str(uuid.uuid4())[:8]
@@ -555,14 +573,14 @@ def whatsapp_webhook():
             # SAVE QUIZ
             quiz.insert_one({
                 "quiz_id": quiz_id,
-                "title": session["quiz_data"]["title"],
+                "title": user["data"]["title"],
                 "start_time": start.isoformat(),
                 "end_time": end.isoformat(),
                 "duration": duration
             })
 
-            # SAVE QUESTIONS (if uploaded)
-            for q in session.get("uploaded_questions", []):
+            # SAVE QUESTIONS
+            for q in user.get("questions", []):
                 questions.insert_one({
                     "quiz_id": quiz_id,
                     "question": q["question"],
@@ -570,18 +588,19 @@ def whatsapp_webhook():
                     "answer": q["answer"]
                 })
 
-            session.clear()
+            # CLEAR SESSION
+            whatsapp_sessions.delete_one({"sender": sender})
 
             resp.message(
-                f"✅ Quiz Created!\n\n🔗 Join:\n{request.host_url}join/{quiz_id}"
+                f"✅ Quiz Created!\n\n🔗 {request.host_url}join/{quiz_id}"
             )
             return str(resp)
 
         except:
-            resp.message("❌ Format must be: 2026-03-31 12:30")
+            resp.message("❌ Format: 2026-04-01 10:30")
             return str(resp)
 
-    resp.message("Say 'create quiz' to begin")
+    resp.message("Say 'create quiz'")
     return str(resp)
 
 # ================= RUN =================
