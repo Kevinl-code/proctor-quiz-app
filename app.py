@@ -15,6 +15,7 @@ from flask import send_from_directory
 from twilio.twiml.messaging_response import MessagingResponse
 import requests
 
+
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
 
@@ -438,6 +439,7 @@ def get_scores():
     return jsonify(data)
 
 
+
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp_webhook():
 
@@ -445,62 +447,138 @@ def whatsapp_webhook():
     sender = request.form.get("From")
 
     media_url = request.form.get("MediaUrl0")
+    media_type = request.form.get("MediaContentType0")
 
     resp = MessagingResponse()
 
-    # ================= FILE RECEIVED =================
+    # ================= FILE HANDLING =================
     if media_url:
+        try:
+            file_data = requests.get(media_url).content
 
-        file_data = requests.get(media_url).content
+            filename = "temp_file"
 
-        # save file
-        with open("temp_file", "wb") as f:
-            f.write(file_data)
+            with open(filename, "wb") as f:
+                f.write(file_data)
 
-        # 👇 CALL YOUR EXISTING PARSER
-        parsed_questions = []
+            parsed_questions = []
 
-        # Example: assume PDF
-        import pdfplumber
+            # ===== PDF =====
+            if media_type and "pdf" in media_type:
+                import pdfplumber
+                with pdfplumber.open(filename) as pdf:
+                    lines = []
+                    for page in pdf.pages:
+                        text = page.extract_text()
+                        if text:
+                            lines.extend(text.split("\n"))
 
-        with pdfplumber.open("temp_file") as pdf:
-            lines = []
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    lines.extend(text.split("\n"))
+                parsed_questions = parse_block_questions(lines)
 
-        parsed_questions = parse_block_questions(lines)
+            # ===== DOCX =====
+            elif media_type and ("word" in media_type or "docx" in media_type):
+                import docx
+                doc = docx.Document(filename)
+                lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+                parsed_questions = parse_block_questions(lines)
 
-        resp.message(f"✅ File received! {len(parsed_questions)} questions extracted.")
+            # ===== TXT =====
+            elif media_type and "text" in media_type:
+                lines = file_data.decode("utf-8").split("\n")
+                parsed_questions = parse_block_questions(lines)
 
-        return str(resp)
+            # ===== CSV =====
+            elif media_type and "csv" in media_type:
+                import pandas as pd
+                df = pd.read_csv(filename)
 
-    # ================= TEXT COMMAND =================
-    if msg and "create quiz" in msg.lower():
+                for _, r in df.iterrows():
+                    parsed_questions.append({
+                        "question": str(r["question"]),
+                        "options": [r["A"], r["B"], r["C"], r["D"]],
+                        "answer": str(r["answer"]).upper()
+                    })
 
-        title = msg.replace("create quiz","").strip()
+            else:
+                resp.message("❌ Unsupported file type")
+                return str(resp)
 
-        quiz_id = str(uuid.uuid4())[:8]
+            resp.message(f"✅ {len(parsed_questions)} questions extracted")
+            return str(resp)
 
-        quiz.insert_one({
-            "quiz_id": quiz_id,
-            "title": title,
-            "start_time": datetime.now().isoformat(),
-            "end_time": (datetime.now()+timedelta(minutes=30)).isoformat(),
-            "duration": 30
-        })
+        except Exception as e:
+            print("ERROR:", e)
+            resp.message("❌ Error processing file")
+            return str(resp)
 
-        reply = f"✅ Quiz Created!\n\nTitle: {title}\n\nJoin:\n{request.host_url}join/{quiz_id}"
+    # ================= TEXT FLOW =================
+    if msg:
 
-        resp.message(reply)
-        return str(resp)
+        msg_lower = msg.lower()
 
-    resp.message("Send: Create Quiz <Title> OR upload file")
+        # STEP 1: START
+        if "create quiz" in msg_lower:
+
+            session["quiz_flow"] = True
+            session["quiz_data"] = {}
+
+            resp.message("📘 Enter Quiz Title")
+            return str(resp)
+
+        # STEP 2: TITLE
+        if session.get("quiz_flow") and "title" not in session["quiz_data"]:
+
+            session["quiz_data"]["title"] = msg
+
+            resp.message("⏱ Enter Duration (in minutes)")
+            return str(resp)
+
+        # STEP 3: DURATION
+        if session.get("quiz_flow") and "duration" not in session["quiz_data"]:
+
+            try:
+                session["quiz_data"]["duration"] = int(msg)
+                resp.message("📅 Enter Start Time (YYYY-MM-DD HH:MM)")
+                return str(resp)
+            except:
+                resp.message("❌ Enter valid number for duration")
+                return str(resp)
+
+        # STEP 4: START TIME
+        if session.get("quiz_flow") and "start" not in session["quiz_data"]:
+
+            try:
+                start = datetime.strptime(msg, "%Y-%m-%d %H:%M")
+                duration = session["quiz_data"]["duration"]
+
+                end = start + timedelta(minutes=duration)
+
+                quiz_id = str(uuid.uuid4())[:8]
+
+                quiz.insert_one({
+                    "quiz_id": quiz_id,
+                    "title": session["quiz_data"]["title"],
+                    "start_time": start.isoformat(),
+                    "end_time": end.isoformat(),
+                    "duration": duration
+                })
+
+                session.pop("quiz_flow")
+                session.pop("quiz_data")
+
+                resp.message(
+                    f"✅ Quiz Created!\n\nJoin:\n{request.host_url}join/{quiz_id}"
+                )
+                return str(resp)
+
+            except:
+                resp.message("❌ Format: YYYY-MM-DD HH:MM")
+                return str(resp)
+
+    # ================= DEFAULT =================
+    resp.message("Send 'Create Quiz' or upload file")
     return str(resp)
-
-
-
+    
 # ================= RUN =================
 if __name__ == "__main__":
     app.run(debug=True)
