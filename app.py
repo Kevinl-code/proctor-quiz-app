@@ -443,19 +443,19 @@ def get_scores():
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp_webhook():
 
+    resp = MessagingResponse()
+
     msg = request.form.get("Body")
     sender = request.form.get("From")
 
     media_url = request.form.get("MediaUrl0")
     media_type = request.form.get("MediaContentType0")
 
-    resp = MessagingResponse()
-
     # ================= FILE HANDLING =================
     if media_url:
+
         try:
             file_data = requests.get(media_url).content
-
             filename = "temp_file"
 
             with open(filename, "wb") as f:
@@ -463,8 +463,8 @@ def whatsapp_webhook():
 
             parsed_questions = []
 
-            # ===== PDF =====
-            if media_type and "pdf" in media_type:
+            # PDF
+            if "pdf" in media_type:
                 import pdfplumber
                 with pdfplumber.open(filename) as pdf:
                     lines = []
@@ -472,23 +472,22 @@ def whatsapp_webhook():
                         text = page.extract_text()
                         if text:
                             lines.extend(text.split("\n"))
-
                 parsed_questions = parse_block_questions(lines)
 
-            # ===== DOCX =====
-            elif media_type and ("word" in media_type or "docx" in media_type):
+            # DOCX
+            elif "word" in media_type or "docx" in media_type:
                 import docx
                 doc = docx.Document(filename)
                 lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
                 parsed_questions = parse_block_questions(lines)
 
-            # ===== TXT =====
-            elif media_type and "text" in media_type:
+            # TXT
+            elif "text" in media_type:
                 lines = file_data.decode("utf-8").split("\n")
                 parsed_questions = parse_block_questions(lines)
 
-            # ===== CSV =====
-            elif media_type and "csv" in media_type:
+            # CSV
+            elif "csv" in media_type:
                 import pandas as pd
                 df = pd.read_csv(filename)
 
@@ -503,82 +502,88 @@ def whatsapp_webhook():
                 resp.message("❌ Unsupported file type")
                 return str(resp)
 
-            resp.message(f"✅ {len(parsed_questions)} questions extracted")
+            # SAVE QUESTIONS TEMP
+            session["uploaded_questions"] = parsed_questions
+
+            resp.message(f"✅ {len(parsed_questions)} questions uploaded.\nNow type: create quiz")
             return str(resp)
 
         except Exception as e:
-            print("ERROR:", e)
             resp.message("❌ Error processing file")
             return str(resp)
 
     # ================= TEXT FLOW =================
-    if msg:
+    if not msg:
+        resp.message("Send a message or upload file")
+        return str(resp)
 
-        msg_lower = msg.lower()
+    msg_lower = msg.lower()
 
-        # STEP 1: START
-        if "create quiz" in msg_lower:
+    # STEP 1: START
+    if "create quiz" in msg_lower:
+        session["quiz_flow"] = True
+        session["quiz_data"] = {}
+        resp.message("📘 Enter Quiz Title")
+        return str(resp)
 
-            session["quiz_flow"] = True
-            session["quiz_data"] = {}
+    # STEP 2: TITLE
+    if session.get("quiz_flow") and "title" not in session["quiz_data"]:
+        session["quiz_data"]["title"] = msg
+        resp.message("⏱ Enter Duration (in minutes)")
+        return str(resp)
 
-            resp.message("📘 Enter Quiz Title")
+    # STEP 3: DURATION ✅ FIXED
+    if session.get("quiz_flow") and "duration" not in session["quiz_data"]:
+        try:
+            duration = int(msg)
+            session["quiz_data"]["duration"] = duration
+            resp.message("📅 Enter Start Time (YYYY-MM-DD HH:MM)")
+            return str(resp)
+        except:
+            resp.message("❌ Enter valid number like 20")
             return str(resp)
 
-        # STEP 2: TITLE
-        if session.get("quiz_flow") and "title" not in session["quiz_data"]:
+    # STEP 4: START TIME
+    if session.get("quiz_flow") and "start" not in session["quiz_data"]:
+        try:
+            start = datetime.strptime(msg, "%Y-%m-%d %H:%M")
+            duration = session["quiz_data"]["duration"]
 
-            session["quiz_data"]["title"] = msg
+            end = start + timedelta(minutes=duration)
+            quiz_id = str(uuid.uuid4())[:8]
 
-            resp.message("⏱ Enter Duration (in minutes)")
-            return str(resp)
+            # SAVE QUIZ
+            quiz.insert_one({
+                "quiz_id": quiz_id,
+                "title": session["quiz_data"]["title"],
+                "start_time": start.isoformat(),
+                "end_time": end.isoformat(),
+                "duration": duration
+            })
 
-        # STEP 3: DURATION
-        if session.get("quiz_flow") and "duration" not in session["quiz_data"]:
-
-            try:
-                session["quiz_data"]["duration"] = int(msg)
-                resp.message("📅 Enter Start Time (YYYY-MM-DD HH:MM)")
-                return str(resp)
-            except:
-                resp.message("❌ Enter valid number for duration")
-                return str(resp)
-
-        # STEP 4: START TIME
-        if session.get("quiz_flow") and "start" not in session["quiz_data"]:
-
-            try:
-                start = datetime.strptime(msg, "%Y-%m-%d %H:%M")
-                duration = session["quiz_data"]["duration"]
-
-                end = start + timedelta(minutes=duration)
-
-                quiz_id = str(uuid.uuid4())[:8]
-
-                quiz.insert_one({
+            # SAVE QUESTIONS (if uploaded)
+            for q in session.get("uploaded_questions", []):
+                questions.insert_one({
                     "quiz_id": quiz_id,
-                    "title": session["quiz_data"]["title"],
-                    "start_time": start.isoformat(),
-                    "end_time": end.isoformat(),
-                    "duration": duration
+                    "question": q["question"],
+                    "options": q["options"],
+                    "answer": q["answer"]
                 })
 
-                session.pop("quiz_flow")
-                session.pop("quiz_data")
+            session.clear()
 
-                resp.message(
-                    f"✅ Quiz Created!\n\nJoin:\n{request.host_url}join/{quiz_id}"
-                )
-                return str(resp)
+            resp.message(
+                f"✅ Quiz Created!\n\n🔗 Join:\n{request.host_url}join/{quiz_id}"
+            )
+            return str(resp)
 
-            except:
-                resp.message("❌ Format: YYYY-MM-DD HH:MM")
-                return str(resp)
+        except:
+            resp.message("❌ Format must be: 2026-03-31 12:30")
+            return str(resp)
 
-    # ================= DEFAULT =================
-    resp.message("Send 'Create Quiz' or upload file")
+    resp.message("Say 'create quiz' to begin")
     return str(resp)
-    
+
 # ================= RUN =================
 if __name__ == "__main__":
     app.run(debug=True)
