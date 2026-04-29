@@ -461,10 +461,12 @@ def whatsapp_webhook():
     user = whatsapp_sessions.find_one({"sender": sender})
 
     # ================= FILE UPLOAD =================
-    if media_url:
+   # ================= FILE UPLOAD =================
+if media_url:
     try:
         TWILIO_ACCOUNT_SID = "ACc3f28a436b1d9604d83bbae0b273e9bd"
         TWILIO_AUTH_TOKEN = "6c47a6a9b686c89807dd01cf0ec22213"
+
         # 🔐 AUTH REQUIRED
         file_data = requests.get(
             media_url,
@@ -541,8 +543,7 @@ def whatsapp_webhook():
     except Exception as e:
         print("ERROR:", str(e))
         resp.message(f"❌ Error: {str(e)}")
-        return str(resp)
-        
+        return str(resp)     
 # ================= TEXT FLOW =================
 
     if not msg:
