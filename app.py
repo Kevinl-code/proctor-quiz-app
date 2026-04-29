@@ -461,96 +461,84 @@ def whatsapp_webhook():
     user = whatsapp_sessions.find_one({"sender": sender})
 
     # ================= FILE UPLOAD =================
-   # ================= FILE UPLOAD =================
-if media_url:
-    try:
-        TWILIO_ACCOUNT_SID = "ACc3f28a436b1d9604d83bbae0b273e9bd"
-        TWILIO_AUTH_TOKEN = "6c47a6a9b686c89807dd01cf0ec22213"
+    if media_url:
+        try:
+            TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+            TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 
-        # 🔐 AUTH REQUIRED
-        file_data = requests.get(
-            media_url,
-            auth=HTTPBasicAuth(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-        ).content
+            file_data = requests.get(
+                media_url,
+                auth=HTTPBasicAuth(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+            ).content
 
-        # 🧠 DETECT FILE TYPE
-        if "pdf" in media_type:
-            filename = "temp.pdf"
-        elif "word" in media_type or "docx" in media_type:
-            filename = "temp.docx"
-        elif "text" in media_type:
-            filename = "temp.txt"
-        elif "csv" in media_type:
-            filename = "temp.csv"
-        else:
-            resp.message("❌ Unsupported file type")
+            # FILE TYPE DETECTION
+            if "pdf" in media_type:
+                filename = "temp.pdf"
+            elif "word" in media_type or "docx" in media_type:
+                filename = "temp.docx"
+            elif "text" in media_type:
+                filename = "temp.txt"
+            elif "csv" in media_type:
+                filename = "temp.csv"
+            else:
+                resp.message("❌ Unsupported file type")
+                return str(resp)
+
+            with open(filename, "wb") as f:
+                f.write(file_data)
+
+            parsed_questions = []
+
+            if filename.endswith(".pdf"):
+                with pdfplumber.open(filename) as pdf:
+                    lines = []
+                    for p in pdf.pages:
+                        t = p.extract_text()
+                        if t:
+                            lines += t.split("\n")
+                parsed_questions = parse_block_questions(lines)
+
+            elif filename.endswith(".docx"):
+                doc = docx.Document(filename)
+                lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+                parsed_questions = parse_block_questions(lines)
+
+            elif filename.endswith(".txt"):
+                lines = file_data.decode().split("\n")
+                parsed_questions = parse_block_questions(lines)
+
+            elif filename.endswith(".csv"):
+                df = pd.read_csv(filename)
+                for _, r in df.iterrows():
+                    parsed_questions.append({
+                        "question": str(r["question"]),
+                        "options": [r["A"], r["B"], r["C"], r["D"]],
+                        "answer": str(r["answer"]).upper()
+                    })
+
+            if len(parsed_questions) == 0:
+                resp.message("⚠️ No valid questions found in file")
+                return str(resp)
+
+            whatsapp_sessions.update_one(
+                {"sender": sender},
+                {"$set": {"questions": parsed_questions}},
+                upsert=True
+            )
+
+            resp.message(f"✅ {len(parsed_questions)} questions uploaded successfully")
             return str(resp)
 
-        # 💾 SAVE FILE
-        with open(filename, "wb") as f:
-            f.write(file_data)
-
-        parsed_questions = []
-
-        # ================= PDF =================
-        if filename.endswith(".pdf"):
-            import pdfplumber
-            with pdfplumber.open(filename) as pdf:
-                lines = []
-                for p in pdf.pages:
-                    t = p.extract_text()
-                    if t:
-                        lines += t.split("\n")
-            parsed_questions = parse_block_questions(lines)
-
-        # ================= DOCX =================
-        elif filename.endswith(".docx"):
-            import docx
-            doc = docx.Document(filename)
-            lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-            parsed_questions = parse_block_questions(lines)
-
-        # ================= TXT =================
-        elif filename.endswith(".txt"):
-            lines = file_data.decode().split("\n")
-            parsed_questions = parse_block_questions(lines)
-
-        # ================= CSV =================
-        elif filename.endswith(".csv"):
-            import pandas as pd
-            df = pd.read_csv(filename)
-            for _, r in df.iterrows():
-                parsed_questions.append({
-                    "question": str(r["question"]),
-                    "options": [r["A"], r["B"], r["C"], r["D"]],
-                    "answer": str(r["answer"]).upper()
-                })
-
-        if len(parsed_questions) == 0:
-            resp.message("⚠️ No valid questions found in file")
+        except Exception as e:
+            print("ERROR:", str(e))
+            resp.message(f"❌ Error: {str(e)}")
             return str(resp)
 
-        # SAVE
-        whatsapp_sessions.update_one(
-            {"sender": sender},
-            {"$set": {"questions": parsed_questions}},
-            upsert=True
-        )
-
-        resp.message(f"✅ {len(parsed_questions)} questions uploaded successfully")
-        return str(resp)
-
-    except Exception as e:
-        print("ERROR:", str(e))
-        resp.message(f"❌ Error: {str(e)}")
-        return str(resp)     
-# ================= TEXT FLOW =================
-
+    # ================= TEXT FLOW =================
     if not msg:
         resp.message("Send message")
         return str(resp)
-
-    msg_lower = msg.lower()
+        msg_lower = msg.lower()
 
     # STEP 1
     if "create quiz" in msg_lower:
