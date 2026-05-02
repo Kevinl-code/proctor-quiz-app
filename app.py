@@ -1,28 +1,16 @@
-from flask import Flask, render_template, request, redirect, flash, jsonify, session
+from flask import Flask, render_template, request, redirect, flash, jsonify, session, send_file, send_from_directory, requests
 from pymongo import MongoClient
-import re
-import uuid
+import re, os, io, qrcode, docx, requests, uuid, pdfplumber
 from datetime import datetime, timedelta
 import pandas as pd
-import docx
-import pdfplumber
-import os
-import io
-import qrcode
-from io import BytesIO
-from flask import send_file
-from flask import send_from_directory
-from twilio.twiml.messaging_response import MessagingResponse
+from io import BytesIO 
 from requests.auth import HTTPBasicAuth
-import requests
-
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
 
 # ================= DATABASE =================
 client = MongoClient("mongodb://Kevin2003:%40Kevin2003@ac-gjdvsbl-shard-00-00.gpbpget.mongodb.net:27017,ac-gjdvsbl-shard-00-01.gpbpget.mongodb.net:27017,ac-gjdvsbl-shard-00-02.gpbpget.mongodb.net:27017/?ssl=true&replicaSet=atlas-dc5j3m-shard-0&authSource=admin&appName=proctor")
-
 db = client['proctor']
 
 users_collection = db['users']
@@ -32,33 +20,40 @@ activity = db["student_activity"]
 scores = db["scores"]
 submissions = db["submissions"]
 
+telegram_sessions = db["telegram_sessions"]
+
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# ================= EMAIL ROLE =================
-teacher_pattern = re.compile(r'^[a-z0-9]+@bhc\.professor\.com$')
-student_pattern = re.compile(r'^[a-z0-9]+@bhc\.student\.com$')
+# ================= TELEGRAM =================
+BOT_TOKEN = "8668408547:AAHf6msPpSEGfeIGEnG6vAGdLS7YLcqdOfk"
+TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
+
+def send_message(chat_id, text):
+    requests.post(f"{TELEGRAM_API}/sendMessage", json={
+        "chat_id": chat_id,
+        "text": text
+    })
 
 # ================= HOME =================
 @app.route('/')
 def spinner():
     return render_template('spinner.html')
 
-# ================= LOGIN =================
+# ================= AUTH =================
+teacher_pattern = re.compile(r'^[a-z0-9]+@bhc\.professor\.com$')
+student_pattern = re.compile(r'^[a-z0-9]+@bhc\.student\.com$')
+
 @app.route("/login", methods=["GET","POST"])
 def login():
-
     if request.method == "POST":
-
         email = request.form["email"]
         password = request.form["password"]
 
         user = users_collection.find_one({"email":email,"password":password})
-
         if user:
-
-            session["user"] = email  
-            session["name"] = user["name"]  # ✅ FIX SESSION
+            session["user"] = email
+            session["name"] = user["name"]
 
             if teacher_pattern.match(email):
                 return redirect("/admin")
@@ -70,31 +65,24 @@ def login():
 
     return render_template("login.html")
 
-# ================= LOGOUT =================
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect("/login")
-# ================= SIGNUP =================
+
 @app.route("/signup",methods=["GET","POST"])
 def signup():
-
     if request.method == "POST":
-
-        data={
+        users_collection.insert_one({
             "name":request.form["name"],
             "email":request.form["email"],
             "password":request.form["password"],
             "role":request.form["role"]
-        }
-
-        users_collection.insert_one(data)
-
+        })
         flash("Account Created Successfully")
         return redirect("/login")
 
     return render_template("signup.html")
-
 
 @app.route('/favicon.ico')
 def favicon():
@@ -104,48 +92,37 @@ def favicon():
 # ================= ADMIN =================
 @app.route("/admin")
 def admin_dashboard():
-
     if "user" not in session:
         return redirect("/login")
-
     return render_template("admin_dashboard.html")
 
-# ================= STUDENT =================
 @app.route("/student")
 def student_dashboard():
-
     if "user" not in session:
         return redirect("/login")
-
     return render_template("student_dashboard.html")
 
 # ================= CREATE QUIZ =================
 @app.route("/create_quiz",methods=["POST"])
 def create_quiz():
-
     data=request.json
 
     quiz_id=str(uuid.uuid4())[:8]
 
     start_time = datetime.fromisoformat(data["start"])
     duration = int(data["duration"])
-
     end_time = start_time + timedelta(minutes=duration)
 
-    quiz_doc={
+    quiz.insert_one({
         "quiz_id":quiz_id,
         "title":data["title"],
         "start_time":start_time.isoformat(),
         "end_time":end_time.isoformat(),
         "duration":duration,
         "created_at":datetime.now()
-    }
+    })
 
-    quiz.insert_one(quiz_doc)
-
-    # save questions
     for q in data.get("questions",[]):
-
         questions.insert_one({
             "quiz_id":quiz_id,
             "question":q["question"],
@@ -153,12 +130,12 @@ def create_quiz():
             "answer":q["answer"]
         })
 
-    return jsonify({"msg": f'{data["title"]} Created Successfully',"quiz_id": quiz_id})
+    return jsonify({"msg":"Quiz Created","quiz_id":quiz_id})
+
+# ================= QR =================
 @app.route("/generate_qr/<quiz_id>")
 def generate_qr(quiz_id):
-
     url = request.host_url + "quiz_info/" + quiz_id
-
     qr = qrcode.make(url)
 
     img_io = io.BytesIO()
@@ -273,45 +250,35 @@ def upload_questions():
     return jsonify(parsed)
 # ================= PARSER =================
 def parse_block_questions(lines):
-
     result = []
     current = None
 
     for line in lines:
-
         line = line.strip()
-
         if not line:
             continue
 
-        # QUESTION
         if "?" in line:
             if current and len(current["options"]) == 4 and current["answer"]:
                 result.append(current)
 
-            current = {
-                "question": line,
-                "options": [],
-                "answer": ""
-            }
+            current = {"question": line, "options": [], "answer": ""}
 
-        # OPTIONS
         elif line.startswith(("A.", "B.", "C.", "D.")):
             if current:
                 current["options"].append(line[2:].strip())
 
-        # ANSWER
         elif "answer" in line.lower():
             if current:
                 ans = line.split(":")[-1].strip().upper()
                 if ans in ["A","B","C","D"]:
                     current["answer"] = ans
 
-    # LAST QUESTION
     if current and len(current["options"]) == 4 and current["answer"]:
         result.append(current)
 
     return result
+
 # ================= GET QUIZZES =================
 @app.route("/get_quizzes")
 def get_quizzes():
@@ -441,225 +408,145 @@ def get_scores():
 
 
 
-from twilio.twiml.messaging_response import MessagingResponse
-import requests
+@app.route("/telegram", methods=["POST"])
+def telegram_webhook():
 
-whatsapp_sessions = db["whatsapp_sessions"]
+    data = request.json
 
-@app.route("/whatsapp", methods=["POST"])
-def whatsapp_webhook():
+    if "message" not in data:
+        return "ok"
 
-    resp = MessagingResponse()
+    msg = data["message"]
+    chat_id = msg["chat"]["id"]
 
-    msg = request.form.get("Body")
-    sender = request.form.get("From")
+    text = msg.get("text")
+    document = msg.get("document")
 
-    media_url = request.form.get("MediaUrl0")
-    media_type = request.form.get("MediaContentType0")
+    user = telegram_sessions.find_one({"chat_id": chat_id})
 
-    # ================= GET USER SESSION =================
-    user = whatsapp_sessions.find_one({"sender": sender})
+    # ================= FILE =================
+    if document:
+        file_id = document["file_id"]
 
-    # ================= FILE UPLOAD =================
-    if media_url:
-        try:
-            TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
-            TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+        file_info = requests.get(f"{TELEGRAM_API}/getFile?file_id={file_id}").json()
+        file_path = file_info["result"]["file_path"]
 
-            file_data = requests.get(
-                media_url,
-                auth=HTTPBasicAuth(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-            ).content
+        file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+        file_data = requests.get(file_url).content
 
-            # FILE TYPE DETECTION
-            if "pdf" in media_type:
-                filename = "temp.pdf"
-            elif "word" in media_type or "docx" in media_type:
-                filename = "temp.docx"
-            elif "text" in media_type:
-                filename = "temp.txt"
-            elif "csv" in media_type:
-                filename = "temp.csv"
-            else:
-                resp.message("❌ Unsupported file type")
-                return str(resp)
+        filename = os.path.join(UPLOAD_FOLDER, document["file_name"])
+        with open(filename, "wb") as f:
+            f.write(file_data)
 
-            # SAVE FILE
-            with open(filename, "wb") as f:
-                f.write(file_data)
+        parsed = []
 
-            parsed_questions = []
+        if filename.endswith(".pdf"):
+            with pdfplumber.open(filename) as pdf:
+                lines=[]
+                for p in pdf.pages:
+                    t=p.extract_text()
+                    if t: lines+=t.split("\n")
+            parsed = parse_block_questions(lines)
 
-            # ================= PARSING =================
-            if filename.endswith(".pdf"):
-                with pdfplumber.open(filename) as pdf:
-                    lines = []
-                    for p in pdf.pages:
-                        t = p.extract_text()
-                        if t:
-                            lines += t.split("\n")
-                parsed_questions = parse_block_questions(lines)
+        elif filename.endswith(".docx"):
+            doc = docx.Document(filename)
+            lines=[p.text for p in doc.paragraphs if p.text.strip()]
+            parsed = parse_block_questions(lines)
 
-            elif filename.endswith(".docx"):
-                doc = docx.Document(filename)
-                lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-                parsed_questions = parse_block_questions(lines)
+        elif filename.endswith(".txt"):
+            lines=file_data.decode().split("\n")
+            parsed = parse_block_questions(lines)
 
-            elif filename.endswith(".txt"):
-                lines = file_data.decode().split("\n")
-                parsed_questions = parse_block_questions(lines)
-
-            elif filename.endswith(".csv"):
-                df = pd.read_csv(filename)
-
-                df.columns = df.columns.str.strip().str.lower()
-                required = ["question", "a", "b", "c", "d", "answer"]
-
-                if not all(col in df.columns for col in required):
-                    resp.message("❌ CSV must contain question,A,B,C,D,answer")
-                    return str(resp)
-
-                for _, r in df.iterrows():
-                    try:
-                        parsed_questions.append({
-                            "question": str(r["question"]),
-                            "options": [r["a"], r["b"], r["c"], r["d"]],
-                            "answer": str(r["answer"]).strip().upper()
-                        })
-                    except:
-                        continue
-
-            if len(parsed_questions) == 0:
-                resp.message("⚠️ No valid questions found in file")
-                return str(resp)
-
-            # 🔁 REFRESH USER
-            user = whatsapp_sessions.find_one({"sender": sender})
-
-            # ================= CREATE QUIZ =================
-            if user and user.get("step") == "upload":
-
-                data = user.get("data", {})
-
-                start = datetime.fromisoformat(data["start"])
-                duration = data["duration"]
-                end = start + timedelta(minutes=duration)
-
-                quiz_id = str(uuid.uuid4())[:8]
-
-                # SAVE QUIZ
-                quiz.insert_one({
-                    "quiz_id": quiz_id,
-                    "title": data["title"],
-                    "start_time": start.isoformat(),
-                    "end_time": end.isoformat(),
-                    "duration": duration
+        elif filename.endswith(".csv"):
+            df=pd.read_csv(filename)
+            for _,r in df.iterrows():
+                parsed.append({
+                    "question":r["question"],
+                    "options":[r["A"],r["B"],r["C"],r["D"]],
+                    "answer":str(r["answer"]).upper()
                 })
 
-                # SAVE QUESTIONS
-                for q in parsed_questions:
-                    questions.insert_one({
-                        "quiz_id": quiz_id,
-                        "question": q["question"],
-                        "options": q["options"],
-                        "answer": q["answer"]
-                    })
+        if user and user.get("step")=="upload":
 
-                # CLEAR SESSION
-                whatsapp_sessions.delete_one({"sender": sender})
+            data_user=user["data"]
 
-                # DELETE TEMP FILE
-                os.remove(filename)
+            quiz_id=str(uuid.uuid4())[:8]
+            start=datetime.fromisoformat(data_user["start"])
+            duration=data_user["duration"]
+            end=start+timedelta(minutes=duration)
 
-                resp.message(f"✅ Quiz Created!\n\n🔗 {request.host_url}join/{quiz_id}")
-                return str(resp)
+            quiz.insert_one({
+                "quiz_id":quiz_id,
+                "title":data_user["title"],
+                "start_time":start.isoformat(),
+                "end_time":end.isoformat(),
+                "duration":duration
+            })
 
-            else:
-                # Store questions only
-                whatsapp_sessions.update_one(
-                    {"sender": sender},
-                    {"$set": {"questions": parsed_questions}},
-                    upsert=True
-                )
+            for q in parsed:
+                questions.insert_one({
+                    "quiz_id":quiz_id,
+                    "question":q["question"],
+                    "options":q["options"],
+                    "answer":q["answer"]
+                })
 
-                resp.message(f"✅ {len(parsed_questions)} questions uploaded")
-                return str(resp)
+            telegram_sessions.delete_one({"chat_id":chat_id})
 
-        except Exception as e:
-            print("ERROR:", str(e))
-            resp.message(f"❌ Error: {str(e)}")
-            return str(resp)
+            send_message(chat_id,f"✅ Quiz Created!\n{request.host_url}join/{quiz_id}")
+            return "ok"
+
+        send_message(chat_id,f"✅ {len(parsed)} questions uploaded")
+        return "ok"
 
     # ================= TEXT FLOW =================
-    if not msg:
-        resp.message("Send message")
-        return str(resp)
+    if text:
 
-    msg_lower = msg.lower()
+        text_l = text.lower()
 
-    # STEP 1
-    if "create quiz" in msg_lower:
-        whatsapp_sessions.update_one(
-            {"sender": sender},
-            {"$set": {"step": "title", "data": {}}},
-            upsert=True
-        )
-        resp.message("📘 Enter Quiz Title")
-        return str(resp)
-
-    # 🔁 REFRESH USER
-    user = whatsapp_sessions.find_one({"sender": sender})
-
-    # STEP 2
-    if user and user.get("step") == "title":
-        whatsapp_sessions.update_one(
-            {"sender": sender},
-            {"$set": {"step": "duration", "data.title": msg}}
-        )
-        resp.message("⏱ Enter Duration (minutes)")
-        return str(resp)
-
-    # STEP 3
-    if user and user.get("step") == "duration":
-        try:
-            duration = int(msg)
-
-            whatsapp_sessions.update_one(
-                {"sender": sender},
-                {"$set": {"step": "start", "data.duration": duration}}
+        if "create quiz" in text_l:
+            telegram_sessions.update_one(
+                {"chat_id":chat_id},
+                {"$set":{"step":"title","data":{}}},
+                upsert=True
             )
+            send_message(chat_id,"📘 Enter Title")
+            return "ok"
 
-            resp.message("📅 Enter Start Time (YYYY-MM-DD HH:MM)")
-            return str(resp)
-
-        except:
-            resp.message("❌ Enter valid number like 20")
-            return str(resp)
-
-    # STEP 4
-    if user and user.get("step") == "start":
-        try:
-            start = datetime.strptime(msg, "%Y-%m-%d %H:%M")
-
-            whatsapp_sessions.update_one(
-                {"sender": sender},
-                {"$set": {"step": "upload", "data.start": start.isoformat()}}
+        if user and user.get("step")=="title":
+            telegram_sessions.update_one(
+                {"chat_id":chat_id},
+                {"$set":{"step":"duration","data.title":text}}
             )
+            send_message(chat_id,"⏱ Enter duration")
+            return "ok"
 
-            resp.message("📎 Upload questions file (PDF / DOCX / CSV / TXT)")
-            return str(resp)
+        if user and user.get("step")=="duration":
+            try:
+                telegram_sessions.update_one(
+                    {"chat_id":chat_id},
+                    {"$set":{"step":"start","data.duration":int(text)}}
+                )
+                send_message(chat_id,"📅 Enter start (YYYY-MM-DD HH:MM)")
+            except:
+                send_message(chat_id,"❌ Enter number")
+            return "ok"
 
-        except:
-            resp.message("❌ Format: 2026-04-01 10:30")
-            return str(resp)
+        if user and user.get("step")=="start":
+            try:
+                dt=datetime.strptime(text,"%Y-%m-%d %H:%M")
+                telegram_sessions.update_one(
+                    {"chat_id":chat_id},
+                    {"$set":{"step":"upload","data.start":dt.isoformat()}}
+                )
+                send_message(chat_id,"📎 Upload file now")
+            except:
+                send_message(chat_id,"❌ Format wrong")
+            return "ok"
 
-    # STILL WAITING FOR FILE
-    if user and user.get("step") == "upload":
-        resp.message("📎 Please upload a file to create quiz")
-        return str(resp)
+    send_message(chat_id,"Say 'create quiz'")
+    return "ok"
 
-    resp.message("Say 'create quiz'")
-    return str(resp)
 # ================= RUN =================
 if __name__ == "__main__":
     app.run(debug=True)
