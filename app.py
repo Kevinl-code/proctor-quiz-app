@@ -489,6 +489,7 @@ def whatsapp_webhook():
 
             parsed_questions = []
 
+            # ================= PARSING =================
             if filename.endswith(".pdf"):
                 with pdfplumber.open(filename) as pdf:
                     lines = []
@@ -520,14 +521,55 @@ def whatsapp_webhook():
                 resp.message("⚠️ No valid questions found in file")
                 return str(resp)
 
-            whatsapp_sessions.update_one(
-                {"sender": sender},
-                {"$set": {"questions": parsed_questions}},
-                upsert=True
-            )
+            # ================= CHECK STEP =================
+            user = whatsapp_sessions.find_one({"sender": sender})
 
-            resp.message(f"✅ {len(parsed_questions)} questions uploaded successfully")
-            return str(resp)
+            if user and user.get("step") == "upload":
+
+                data = user.get("data", {})
+
+                start = datetime.fromisoformat(data["start"])
+                duration = data["duration"]
+                end = start + timedelta(minutes=duration)
+
+                quiz_id = str(uuid.uuid4())[:8]
+
+                # SAVE QUIZ
+                quiz.insert_one({
+                    "quiz_id": quiz_id,
+                    "title": data["title"],
+                    "start_time": start.isoformat(),
+                    "end_time": end.isoformat(),
+                    "duration": duration
+                })
+
+                # SAVE QUESTIONS
+                for q in parsed_questions:
+                    questions.insert_one({
+                        "quiz_id": quiz_id,
+                        "question": q["question"],
+                        "options": q["options"],
+                        "answer": q["answer"]
+                    })
+
+                # CLEAR SESSION
+                whatsapp_sessions.delete_one({"sender": sender})
+
+                resp.message(
+                    f"✅ Quiz Created Successfully!\n\n🔗 {request.host_url}join/{quiz_id}"
+                )
+                return str(resp)
+
+            else:
+                # If not in upload step, just store questions
+                whatsapp_sessions.update_one(
+                    {"sender": sender},
+                    {"$set": {"questions": parsed_questions}},
+                    upsert=True
+                )
+
+                resp.message(f"✅ {len(parsed_questions)} questions uploaded")
+                return str(resp)
 
         except Exception as e:
             print("ERROR:", str(e))
@@ -538,6 +580,7 @@ def whatsapp_webhook():
     if not msg:
         resp.message("Send message")
         return str(resp)
+
     msg_lower = msg.lower()
 
     # STEP 1
@@ -550,6 +593,9 @@ def whatsapp_webhook():
         resp.message("📘 Enter Quiz Title")
         return str(resp)
 
+    # REFRESH USER AFTER UPDATE
+    user = whatsapp_sessions.find_one({"sender": sender})
+
     # STEP 2: TITLE
     if user and user.get("step") == "title":
         whatsapp_sessions.update_one(
@@ -559,7 +605,7 @@ def whatsapp_webhook():
         resp.message("⏱ Enter Duration (minutes)")
         return str(resp)
 
-    # STEP 3: DURATION ✅ FIXED FOREVER
+    # STEP 3: DURATION
     if user and user.get("step") == "duration":
         try:
             duration = int(msg)
@@ -576,48 +622,36 @@ def whatsapp_webhook():
             resp.message("❌ Enter valid number like 20")
             return str(resp)
 
-    # STEP 4: START TIME
+    # STEP 4: START TIME → ASK UPLOAD
     if user and user.get("step") == "start":
         try:
             start = datetime.strptime(msg, "%Y-%m-%d %H:%M")
-            duration = user["data"]["duration"]
 
-            end = start + timedelta(minutes=duration)
-            quiz_id = str(uuid.uuid4())[:8]
-
-            # SAVE QUIZ
-            quiz.insert_one({
-                "quiz_id": quiz_id,
-                "title": user["data"]["title"],
-                "start_time": start.isoformat(),
-                "end_time": end.isoformat(),
-                "duration": duration
-            })
-
-            # SAVE QUESTIONS
-            for q in user.get("questions", []):
-                questions.insert_one({
-                    "quiz_id": quiz_id,
-                    "question": q["question"],
-                    "options": q["options"],
-                    "answer": q["answer"]
-                })
-
-            # CLEAR SESSION
-            whatsapp_sessions.delete_one({"sender": sender})
-
-            resp.message(
-                f"✅ Quiz Created!\n\n🔗 {request.host_url}join/{quiz_id}"
+            whatsapp_sessions.update_one(
+                {"sender": sender},
+                {
+                    "$set": {
+                        "step": "upload",
+                        "data.start": start.isoformat()
+                    }
+                }
             )
+
+            resp.message("📎 Upload questions file (PDF / DOCX / CSV / TXT)")
             return str(resp)
 
         except:
             resp.message("❌ Format: 2026-04-01 10:30")
             return str(resp)
 
+    # IF USER FORGOT FILE
+    if user and user.get("step") == "upload":
+        resp.message("📎 Please upload a file to create quiz")
+        return str(resp)
+
     resp.message("Say 'create quiz'")
     return str(resp)
-
+    
 # ================= RUN =================
 if __name__ == "__main__":
     app.run(debug=True)
