@@ -547,6 +547,45 @@ def telegram_webhook():
     send_message(chat_id,"Say 'create quiz'")
     return "ok"
 
+@app.route("/privacy")
+def privacy():
+    return """
+    <html>
+    <head>
+        <title>PQDS Privacy Policy</title>
+        <style>
+            body {
+                font-family: Arial;
+                padding: 40px;
+                line-height: 1.6;
+                max-width: 800px;
+                margin: auto;
+            }
+            h1 { color: #333; }
+        </style>
+    </head>
+    <body>
+        <h1>PQDS Privacy Policy</h1>
+
+        <p>PQDS Quiz Bot collects only necessary data such as:</p>
+        <ul>
+            <li>Quiz details</li>
+            <li>Questions uploaded</li>
+            <li>Student scores</li>
+            <li>Activity logs</li>
+        </ul>
+
+        <p>We do NOT sell or share your data with third parties.</p>
+
+        <p>All data is used only for quiz management and analytics.</p>
+
+        <p>By using this bot, you agree to this policy.</p>
+
+        <p>Contact: pqds.support@gmail.com</p>
+    </body>
+    </html>
+    """
+
 # ================= RUN =================
 if __name__ == "__main__":
     app.run(debug=True)
