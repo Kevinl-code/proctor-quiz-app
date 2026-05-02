@@ -509,24 +509,26 @@ def whatsapp_webhook():
                 parsed_questions = parse_block_questions(lines)
 
             elif filename.endswith(".csv"):
-                df = pd.read_csv(file)
-
+                df = pd.read_csv(filename)
+            
                 # normalize column names
                 df.columns = df.columns.str.strip().str.lower()
-                
+            
                 required_cols = ["question", "a", "b", "c", "d", "answer"]
-                
+            
                 if not all(col in df.columns for col in required_cols):
-                    return jsonify({"error": "CSV must contain question,A,B,C,D,answer"}), 400
-                
+                    resp.message("❌ CSV must contain question,A,B,C,D,answer")
+                    return str(resp)
+            
                 for _, r in df.iterrows():
-                    parsed.append({
-                        "question": str(r["question"]),
-                        "options": [r["a"], r["b"], r["c"], r["d"]],
-                        "answer": str(r["answer"]).strip().upper()
-                    })
-                except:
-                    continue
+                    try:
+                        parsed_questions.append({
+                            "question": str(r["question"]),
+                            "options": [r["a"], r["b"], r["c"], r["d"]],
+                            "answer": str(r["answer"]).strip().upper()
+                        })
+                    except:
+                        continue
             if len(parsed_questions) == 0:
                 resp.message("⚠️ No valid questions found in file")
                 return str(resp)
