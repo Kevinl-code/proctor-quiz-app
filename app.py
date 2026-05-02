@@ -484,6 +484,7 @@ def whatsapp_webhook():
                 resp.message("❌ Unsupported file type")
                 return str(resp)
 
+            # SAVE FILE
             with open(filename, "wb") as f:
                 f.write(file_data)
 
@@ -510,16 +511,14 @@ def whatsapp_webhook():
 
             elif filename.endswith(".csv"):
                 df = pd.read_csv(filename)
-            
-                # normalize column names
+
                 df.columns = df.columns.str.strip().str.lower()
-            
-                required_cols = ["question", "a", "b", "c", "d", "answer"]
-            
-                if not all(col in df.columns for col in required_cols):
+                required = ["question", "a", "b", "c", "d", "answer"]
+
+                if not all(col in df.columns for col in required):
                     resp.message("❌ CSV must contain question,A,B,C,D,answer")
                     return str(resp)
-            
+
                 for _, r in df.iterrows():
                     try:
                         parsed_questions.append({
@@ -529,18 +528,17 @@ def whatsapp_webhook():
                         })
                     except:
                         continue
+
             if len(parsed_questions) == 0:
                 resp.message("⚠️ No valid questions found in file")
                 return str(resp)
 
-            # ================= CHECK STEP =================
+            # 🔁 REFRESH USER
             user = whatsapp_sessions.find_one({"sender": sender})
-            
-            print("DEBUG STEP:", user)
-            print("STEP:", user.get("step"))
-            print("SENDER:", sender)# 🔥 ADD THIS
-            
+
+            # ================= CREATE QUIZ =================
             if user and user.get("step") == "upload":
+
                 data = user.get("data", {})
 
                 start = datetime.fromisoformat(data["start"])
@@ -570,13 +568,14 @@ def whatsapp_webhook():
                 # CLEAR SESSION
                 whatsapp_sessions.delete_one({"sender": sender})
 
-                resp.message(
-                    f"✅ Quiz Created Successfully!\n\n🔗 {request.host_url}join/{quiz_id}"
-                )
+                # DELETE TEMP FILE
+                os.remove(filename)
+
+                resp.message(f"✅ Quiz Created!\n\n🔗 {request.host_url}join/{quiz_id}")
                 return str(resp)
 
             else:
-                # If not in upload step, just store questions
+                # Store questions only
                 whatsapp_sessions.update_one(
                     {"sender": sender},
                     {"$set": {"questions": parsed_questions}},
@@ -608,10 +607,10 @@ def whatsapp_webhook():
         resp.message("📘 Enter Quiz Title")
         return str(resp)
 
-    # REFRESH USER AFTER UPDATE
+    # 🔁 REFRESH USER
     user = whatsapp_sessions.find_one({"sender": sender})
 
-    # STEP 2: TITLE
+    # STEP 2
     if user and user.get("step") == "title":
         whatsapp_sessions.update_one(
             {"sender": sender},
@@ -620,7 +619,7 @@ def whatsapp_webhook():
         resp.message("⏱ Enter Duration (minutes)")
         return str(resp)
 
-    # STEP 3: DURATION
+    # STEP 3
     if user and user.get("step") == "duration":
         try:
             duration = int(msg)
@@ -637,19 +636,14 @@ def whatsapp_webhook():
             resp.message("❌ Enter valid number like 20")
             return str(resp)
 
-    # STEP 4: START TIME → ASK UPLOAD
+    # STEP 4
     if user and user.get("step") == "start":
         try:
             start = datetime.strptime(msg, "%Y-%m-%d %H:%M")
 
             whatsapp_sessions.update_one(
                 {"sender": sender},
-                {
-                    "$set": {
-                        "step": "upload",
-                        "data.start": start.isoformat()
-                    }
-                }
+                {"$set": {"step": "upload", "data.start": start.isoformat()}}
             )
 
             resp.message("📎 Upload questions file (PDF / DOCX / CSV / TXT)")
@@ -659,14 +653,13 @@ def whatsapp_webhook():
             resp.message("❌ Format: 2026-04-01 10:30")
             return str(resp)
 
-    # IF USER FORGOT FILE
+    # STILL WAITING FOR FILE
     if user and user.get("step") == "upload":
         resp.message("📎 Please upload a file to create quiz")
         return str(resp)
 
     resp.message("Say 'create quiz'")
     return str(resp)
-    
 # ================= RUN =================
 if __name__ == "__main__":
     app.run(debug=True)
