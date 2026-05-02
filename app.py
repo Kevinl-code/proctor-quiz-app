@@ -535,9 +535,12 @@ def whatsapp_webhook():
 
             # ================= CHECK STEP =================
             user = whatsapp_sessions.find_one({"sender": sender})
-
+            
+            print("DEBUG STEP:", user)
+            print("STEP:", user.get("step"))
+            print("SENDER:", sender)# 🔥 ADD THIS
+            
             if user and user.get("step") == "upload":
-
                 data = user.get("data", {})
 
                 start = datetime.fromisoformat(data["start"])
