@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, flash, jsonify, session, send_file, send_from_directory, requests
+from flask import Flask, render_template, request, redirect, flash, jsonify, session, send_file, send_from_directory
 from pymongo import MongoClient
 import re, os, io, qrcode, docx, requests, uuid, pdfplumber
 from datetime import datetime, timedelta
