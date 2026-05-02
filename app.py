@@ -538,7 +538,7 @@ def whatsapp_webhook():
     if not msg:
         resp.message("Send message")
         return str(resp)
-        msg_lower = msg.lower()
+    msg_lower = msg.lower()
 
     # STEP 1
     if "create quiz" in msg_lower:
