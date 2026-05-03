@@ -708,31 +708,67 @@ def telegram_webhook():
         cq = update["callback_query"]
         chat_id = cq["message"]["chat"]["id"]
         data_cb = cq["data"]
-
-        user = telegram_sessions.find_one({"chat_id": chat_id}) or {}
-
+    
+        # ✅ MUST
+        tg("answerCallbackQuery", {
+            "callback_query_id": cq["id"]
+        })
+    
+        user = telegram_sessions.find_one({"chat_id": chat_id})
+    
+        # ===== CREATE =====
+        if data_cb == "create":
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"step": "title", "data": {}}},
+                upsert=True
+            )
+            send_message(chat_id, "📘 Enter Quiz Title")
+            return "ok"
+    
+        # ===== HELP =====
+        if data_cb == "help":
+            send_message(chat_id, "Create → Fill details → Upload → Preview → Submit", main_menu_kb())
+            return "ok"
+    
+        # ===== EDIT TITLE =====
         if data_cb == "edit_title":
             telegram_sessions.update_one({"chat_id": chat_id}, {"$set": {"step": "title"}})
             send_message(chat_id, "✏️ Enter new title")
             return "ok"
-
+    
+        # ===== EDIT DURATION =====
         if data_cb == "edit_duration":
             telegram_sessions.update_one({"chat_id": chat_id}, {"$set": {"step": "duration"}})
             send_message(chat_id, "⏱ Enter new duration")
             return "ok"
-
+    
+        # ===== EDIT START =====
         if data_cb == "edit_start":
             telegram_sessions.update_one({"chat_id": chat_id}, {"$set": {"step": "start"}})
-            send_message(chat_id, "📅 Enter new date")
+            send_message(chat_id, "📅 Enter new start (YYYY-MM-DD HH:MM)")
             return "ok"
-
-        if data_cb == "final_submit":
-            data_u = user.get("data", {})
-            qs = user.get("questions", [])
-
-            if not data_u or not qs:
-                send_message(chat_id, "⚠️ Missing data")
+    
+        # ===== REUPLOAD =====
+        if data_cb == "reupload":
+            missing = require_prereq(user or {})
+            if missing:
+                send_message(chat_id, f"⚠️ Fill first: {', '.join(missing)}")
                 return "ok"
+    
+            telegram_sessions.update_one({"chat_id": chat_id}, {"$set": {"step": "upload"}})
+            send_message(chat_id, "📎 Upload new questions file")
+            return "ok"
+    
+        # ===== CANCEL =====
+        if data_cb == "cancel":
+            telegram_sessions.delete_one({"chat_id": chat_id})
+            send_message(chat_id, "❌ Cancelled", main_menu_kb())
+            return "ok"
+    
+        # ===== FALLBACK =====
+        send_message(chat_id, "⚠️ Unknown action", main_menu_kb())
+        return "ok"
 
             start = datetime.fromisoformat(data_u["start"])
             duration = int(data_u["duration"])
