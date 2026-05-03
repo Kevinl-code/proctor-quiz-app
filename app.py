@@ -616,9 +616,15 @@ def telegram_webhook():
                     parsed = parse_block_questions(lines)
 
                 elif filename.lower().endswith(".csv"):
+                    import pandas as pd
+                    df = pd.read_csv(filename)
                     df.columns = df.columns.str.strip().str.lower()
 
-                    parsed.append({"question": str(r["question"]),"options": [r["a"], r["b"], r["c"], r["d"]],"answer": str(r["answer"]).strip().upper()})
+                for _, r in df.iterrows():
+                    parsed.append({
+                    "question": str(r["question"]),
+                    "options": [r["a"], r["b"], r["c"], r["d"]],
+                    "answer": str(r["answer"]).strip().upper() })
                 else:
                     send_message(chat_id, "❌ Unsupported file type", edit_menu_kb())
                     return "ok"
@@ -699,16 +705,15 @@ def telegram_webhook():
             return "ok"
 
         # ====== STEP FLOW ======
-        user = telegram_sessions.find_one({"chat_id": chat_id})
+        # ================= STORE QUESTIONS =================
+        telegram_sessions.update_one({"chat_id": chat_id},{"$set": {"questions": parsed,"step": "review" }},upsert=True)
 
-        if user and user.get("step") == "title":
-            telegram_sessions.update_one(
-                {"chat_id": chat_id},
-                {"$set": {"step": "duration", "data.title": text}}
-            )
-            send_message(chat_id, "⏱ Enter Duration (minutes)")
-            return "ok"
-
+# ================= REVIEW PROMPT =================
+        send_message(
+            chat_id,
+            "✅ Questions uploaded successfully.\n\nUse buttons to edit or submit.",
+            edit_menu_kb()
+           )
         if user and user.get("step") == "duration":
             try:
                 dur = int(text)
