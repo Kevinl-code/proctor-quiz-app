@@ -464,6 +464,95 @@ def build_qr_bytes(url):
     bio.seek(0)
     return bio
 
+def generate_styled_qr_card(quiz_id, title, duration):
+
+    url = request.host_url + "join/" + quiz_id
+
+    # ================= BASE QR =================
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=ERROR_CORRECT_H,
+        box_size=10,
+        border=2
+    )
+
+    qr.add_data(url)
+    qr.make(fit=True)
+
+    qr_img = qr.make_image(fill_color="#111827", back_color="white").convert("RGBA")
+
+    # Resize QR
+    qr_img = qr_img.resize((200, 200))
+
+    # ================= ADD LOGO =================
+    try:
+        logo = Image.open("static/images/logo.png").convert("RGBA")
+
+        # Resize logo
+        logo_size = 50
+        logo = logo.resize((logo_size, logo_size))
+
+        # Position center
+        pos = (
+            qr_img.size[0]//2 - logo_size//2,
+            qr_img.size[1]//2 - logo_size//2
+        )
+
+        # White circle behind logo
+        circle = Image.new("RGBA", (logo_size+10, logo_size+10), (255,255,255,255))
+        mask = Image.new("L", circle.size, 0)
+        draw = ImageDraw.Draw(mask)
+        draw.ellipse((0,0,circle.size[0],circle.size[1]), fill=255)
+
+        qr_img.paste(circle, (pos[0]-5, pos[1]-5), mask)
+        qr_img.paste(logo, pos, logo)
+
+    except:
+        pass  # logo optional
+
+    # ================= CREATE CARD =================
+    card = Image.new("RGBA", (300, 380), (0,0,0,0))
+    draw = ImageDraw.Draw(card)
+
+    # Gradient simulation (top to bottom)
+    for i in range(380):
+        r = int(102 + (118-102)*(i/380))
+        g = int(126 + (75-126)*(i/380))
+        b = int(234 + (162-234)*(i/380))
+        draw.line([(0,i),(300,i)], fill=(r,g,b))
+
+    # Rounded corners mask
+    mask = Image.new("L", (300,380), 0)
+    mdraw = ImageDraw.Draw(mask)
+    mdraw.rounded_rectangle((0,0,300,380), radius=25, fill=255)
+    card.putalpha(mask)
+
+    # ================= PASTE QR =================
+    card.paste(qr_img, (50, 100), qr_img)
+
+    # ================= TEXT =================
+    draw = ImageDraw.Draw(card)
+
+    try:
+        from PIL import ImageFont
+        font_title = ImageFont.truetype("arial.ttf", 18)
+        font_small = ImageFont.truetype("arial.ttf", 12)
+    except:
+        font_title = None
+        font_small = None
+
+    draw.text((90, 20), "Quiz ID: " + quiz_id, fill="white", font=font_small)
+    draw.text((70, 45), title[:20], fill="white", font=font_title)
+    draw.text((80, 70), f"Duration: {duration} mins", fill="white", font=font_small)
+    draw.text((80, 320), "Scan to Join", fill="white", font=font_small)
+
+    # ================= SAVE =================
+    img_io = BytesIO()
+    card.save(img_io, format="PNG")
+    img_io.seek(0)
+
+    return img_io
+
 # ================= TELEGRAM WEBHOOK =================
 @app.route("/telegram", methods=["POST"])
 def telegram_webhook():
@@ -745,10 +834,10 @@ def telegram_webhook():
             join_url = f"{request.host_url}join/{quiz_id}"
             qr_bytes = build_qr_bytes(join_url)
 
-            send_photo(chat_id, qr_bytes.getvalue(), caption=f"✅ Quiz Created!\n🔗 {join_url}")
+            img = generate_styled_qr_card(quiz_id, title, duration)
+            send_telegram_message(chat_id,f"✅ Quiz Created!\n\n🔗 {request.host_url}join/{quiz_id}")
+            send_telegram_photo(chat_id, img)
             return "ok"
-
-    return "ok"
 
         
 @app.route("/privacy")
