@@ -501,52 +501,85 @@ def telegram_webhook():
 
     # ================= TEXT FLOW =================
     if text:
-
+        text = text.strip()
         text_l = text.lower()
 
-        if "create quiz" in text_l:
+    # ================= COMMAND HANDLING =================
+
+    if text_l in ["/start"]:
+        send_message(chat_id,
+        "👋 Welcome to PQDS Quiz Bot!\n\n"
+        "Use commands:\n"
+        "/create_quiz - Create quiz\n"
+        "/upload - Upload questions\n"
+        "/help - Help guide")
+        return "ok"
+
+    if text_l in ["/help"]:
+        send_message(chat_id,
+        "📖 Steps:\n"
+        "1. /create_quiz\n"
+        "2. Enter title\n"
+        "3. Enter duration\n"
+        "4. Enter start time\n"
+        "5. Upload file")
+        return "ok"
+
+    if text_l in ["/dashboard"]:
+        send_message(chat_id,
+        f"🌐 Open Dashboard:\n{request.host_url}")
+        return "ok"
+
+    if text_l in ["/cancel"]:
+        telegram_sessions.delete_one({"chat_id": chat_id})
+        send_message(chat_id, "❌ Quiz creation cancelled")
+        return "ok"
+
+    # ================= CREATE QUIZ FLOW =================
+
+    if text_l in ["/create_quiz", "create quiz"]:
+        telegram_sessions.update_one(
+            {"chat_id": chat_id},
+            {"$set": {"step": "title", "data": {}}},
+            upsert=True
+        )
+        send_message(chat_id, "📘 Enter Quiz Title")
+        return "ok"
+
+    # ================= CONTINUE FLOW =================
+
+    user = telegram_sessions.find_one({"chat_id": chat_id})
+
+    if user and user.get("step") == "title":
+        telegram_sessions.update_one(
+            {"chat_id": chat_id},
+            {"$set": {"step": "duration", "data.title": text}}
+        )
+        send_message(chat_id, "⏱ Enter Duration (minutes)")
+        return "ok"
+
+    if user and user.get("step") == "duration":
+        try:
             telegram_sessions.update_one(
-                {"chat_id":chat_id},
-                {"$set":{"step":"title","data":{}}},
-                upsert=True
+                {"chat_id": chat_id},
+                {"$set": {"step": "start", "data.duration": int(text)}}
             )
-            send_message(chat_id,"📘 Enter Title")
-            return "ok"
+            send_message(chat_id, "📅 Enter Start (YYYY-MM-DD HH:MM)")
+        except:
+            send_message(chat_id, "❌ Enter valid number like 20")
+        return "ok"
 
-        if user and user.get("step")=="title":
+    if user and user.get("step") == "start":
+        try:
+            dt = datetime.strptime(text, "%Y-%m-%d %H:%M")
             telegram_sessions.update_one(
-                {"chat_id":chat_id},
-                {"$set":{"step":"duration","data.title":text}}
+                {"chat_id": chat_id},
+                {"$set": {"step": "upload", "data.start": dt.isoformat()}}
             )
-            send_message(chat_id,"⏱ Enter duration")
-            return "ok"
-
-        if user and user.get("step")=="duration":
-            try:
-                telegram_sessions.update_one(
-                    {"chat_id":chat_id},
-                    {"$set":{"step":"start","data.duration":int(text)}}
-                )
-                send_message(chat_id,"📅 Enter start (YYYY-MM-DD HH:MM)")
-            except:
-                send_message(chat_id,"❌ Enter number")
-            return "ok"
-
-        if user and user.get("step")=="start":
-            try:
-                dt=datetime.strptime(text,"%Y-%m-%d %H:%M")
-                telegram_sessions.update_one(
-                    {"chat_id":chat_id},
-                    {"$set":{"step":"upload","data.start":dt.isoformat()}}
-                )
-                send_message(chat_id,"📎 Upload file now")
-            except:
-                send_message(chat_id,"❌ Format wrong")
-            return "ok"
-
-    send_message(chat_id,"Say 'create quiz'")
-    return "ok"
-
+            send_message(chat_id, "📎 Upload questions file now")
+        except:
+            send_message(chat_id, "❌ Format: 2026-04-01 10:30")
+        return "ok"
 @app.route("/privacy")
 def privacy():
     return """
