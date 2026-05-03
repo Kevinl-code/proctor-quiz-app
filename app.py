@@ -716,11 +716,108 @@ def telegram_webhook():
             telegram_sessions.delete_one({"chat_id": chat_id})
             send_message(chat_id, "❌ Cancelled", main_menu_kb())
             return "ok"
+        # ====== TEXT FLOW ======
+        if not text:
+            send_message(chat_id, "Send valid text", main_menu_kb())
+            return "ok"
+        
+        tl = text.lower()
+        
+        # START
+        if tl in ("/start", "start"):
+            telegram_sessions.delete_one({"chat_id": chat_id})
+            send_message(chat_id,
+                "👋 Welcome to PQDS\nCreate quizzes with files + QR in seconds.",
+                main_menu_kb())
+            return "ok"
+        
+        # HELP
+        if tl in ("/help", "help"):
+            send_message(chat_id,
+                "Flow:\n1) Create Quiz\n2) Title → Duration → Start\n3) Upload file\n4) Preview → Edit → Submit",
+                main_menu_kb())
+            return "ok"
+        
+        # CREATE
+        if tl in ("/create_quiz", "create quiz"):
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"step": "title", "data": {}}},
+                upsert=True
+            )
+            send_message(chat_id, "📘 Enter Quiz Title")
+            return "ok"
+        
+        # CANCEL
+        if tl in ("/cancel", "cancel"):
+            telegram_sessions.delete_one({"chat_id": chat_id})
+            send_message(chat_id, "❌ Cancelled", main_menu_kb())
+            return "ok"
+        
+        
+        # 🔁 REFRESH USER
+        user = telegram_sessions.find_one({"chat_id": chat_id})
+        
+        # ================= STEP HANDLERS =================
+        
+        # TITLE
+        if user and user.get("step") == "title":
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {
+                    "step": "duration",
+                    "data.title": text
+                }}
+            )
+            send_message(chat_id, "⏱ Enter Duration (minutes)")
+            return "ok"
+        
+        # DURATION
+        if user and user.get("step") == "duration":
+            try:
+                dur = int(text)
+        
+                telegram_sessions.update_one(
+                    {"chat_id": chat_id},
+                    {"$set": {
+                        "step": "start",
+                        "data.duration": dur
+                    }}
+                )
+        
+                send_message(chat_id, "📅 Enter Start (YYYY-MM-DD HH:MM)")
+            except:
+                send_message(chat_id, "❌ Enter valid number like 20")
+            return "ok"
+        
+        # START TIME
+        if user and user.get("step") == "start":
+            try:
+                dt = datetime.strptime(text, "%Y-%m-%d %H:%M")
+        
+                telegram_sessions.update_one(
+                    {"chat_id": chat_id},
+                    {"$set": {
+                        "step": "upload",
+                        "data.start": dt.isoformat()
+                    }}
+                )
+        
+                send_message(chat_id, "📎 Now upload questions file")
+            except:
+                send_message(chat_id, "❌ Format: 2026-05-10 10:30")
+            return "ok"
+        
+        # WRONG INPUT DURING UPLOAD
+        if user and user.get("step") == "upload":
+            send_message(chat_id, "📎 Please upload file (PDF/DOCX/CSV/TXT)")
+            return "ok"
+        
+        send_message(chat_id, "Use menu to begin.", main_menu_kb())
+        return "ok"
 
         # ====== STEP FLOW ======
-        # ================= STORE QUESTIONS =================
-        telegram_sessions.update_one({"chat_id": chat_id},{"$set": {"questions": parsed,"step": "review" }},upsert=True)
-
+      
 # ================= REVIEW PROMPT =================
         send_message(
             chat_id,
@@ -775,9 +872,7 @@ def telegram_webhook():
         if data_cb == "edit_title":
             telegram_sessions.update_one(
                 {"chat_id": chat_id},
-                {"$set": {"step": "title", "data": {}}},
-                upsert=True
-            )
+                {"$set": {"step": "title"}})
             send_message(chat_id, "✏️ Enter new title")
             return "ok"
 
