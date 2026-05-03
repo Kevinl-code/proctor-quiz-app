@@ -764,11 +764,6 @@ def telegram_webhook():
 
         # Create
         if data_cb == "create":
-            telegram_sessions.update_one(
-                {"chat_id": chat_id},
-                {"$set": {"step": "title", "data": {}}},
-                upsert=True
-            )
             send_message(chat_id, "📘 Enter Quiz Title")
             return "ok"
 
@@ -778,7 +773,11 @@ def telegram_webhook():
 
         # Edit actions
         if data_cb == "edit_title":
-            telegram_sessions.update_one({"chat_id": chat_id}, {"$set": {"step": "title"}})
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"step": "title", "data": {}}},
+                upsert=True
+            )
             send_message(chat_id, "✏️ Enter new title")
             return "ok"
 
