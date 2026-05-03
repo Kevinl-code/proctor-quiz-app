@@ -904,32 +904,197 @@ def telegram_webhook():
         if data_cb == "final_submit":
             if not user:
                 send_message(chat_id, "⚠️ No active session", main_menu_kb())
+                
+@app.route("/telegram", methods=["POST"])
+def telegram_webhook():
+    update = request.json or {}
+
+    # ================= MESSAGE =================
+    if "message" in update:
+        msg = update["message"]
+        chat_id = msg["chat"]["id"]
+        text = msg.get("text", "").strip()
+        doc = msg.get("document")
+
+        user = telegram_sessions.find_one({"chat_id": chat_id}) or {}
+
+        step = user.get("step")
+        data = user.get("data", {})
+
+        # ================= FILE HANDLING =================
+        if doc:
+            if step != "upload":
+                missing = require_prereq(user)
+                send_message(chat_id, f"⚠️ Complete first: {', '.join(missing)}")
                 return "ok"
 
+            file_id = doc["file_id"]
+            fi = requests.get(f"{TELEGRAM_API}/getFile?file_id={file_id}").json()
+            file_path = fi["result"]["file_path"]
+
+            file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+            file_data = requests.get(file_url).content
+
+            filename = os.path.join(UPLOAD_FOLDER, doc.get("file_name", "temp"))
+            with open(filename, "wb") as f:
+                f.write(file_data)
+
+            parsed = []
+
+            try:
+                if filename.endswith(".pdf"):
+                    with pdfplumber.open(filename) as pdf:
+                        lines = []
+                        for p in pdf.pages:
+                            t = p.extract_text()
+                            if t:
+                                lines += t.split("\n")
+                    parsed = parse_block_questions(lines)
+
+                elif filename.endswith(".docx"):
+                    d = docx.Document(filename)
+                    lines = [p.text.strip() for p in d.paragraphs if p.text.strip()]
+                    parsed = parse_block_questions(lines)
+
+                elif filename.endswith(".txt"):
+                    lines = file_data.decode(errors="ignore").split("\n")
+                    parsed = parse_block_questions(lines)
+
+                elif filename.endswith(".csv"):
+                    df = pd.read_csv(filename)
+                    df.columns = df.columns.str.lower()
+
+                    for _, r in df.iterrows():
+                        parsed.append({
+                            "question": r["question"],
+                            "options": [r["a"], r["b"], r["c"], r["d"]],
+                            "answer": r["answer"].upper()
+                        })
+
+            finally:
+                try: os.remove(filename)
+                except: pass
+
+            if not parsed:
+                send_message(chat_id, "⚠️ No valid questions found")
+                return "ok"
+
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"questions": parsed, "step": "review"}},
+                upsert=True
+            )
+
+            send_message(chat_id, f"✅ {len(parsed)} questions uploaded", edit_menu_kb())
+            return "ok"
+
+        # ================= COMMANDS =================
+        if text.lower() == "/start":
+            telegram_sessions.delete_one({"chat_id": chat_id})
+            send_message(chat_id, "👋 Welcome to PQDS", main_menu_kb())
+            return "ok"
+
+        if text.lower() == "/create_quiz":
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"step": "title", "data": {}}},
+                upsert=True
+            )
+            send_message(chat_id, "📘 Enter Title")
+            return "ok"
+
+        if text.lower() == "/upload":
             missing = require_prereq(user)
             if missing:
-                send_message(chat_id, f"⚠️ Missing: {', '.join(missing)}", edit_menu_kb())
+                send_message(chat_id, f"⚠️ Fill first: {', '.join(missing)}")
                 return "ok"
 
-            qs = user.get("questions") or []
-            if not qs:
-                send_message(chat_id, "⚠️ No questions uploaded", edit_menu_kb())
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"step": "upload"}}
+            )
+            send_message(chat_id, "📎 Upload file")
+            return "ok"
+
+        # ================= STEP FLOW =================
+        if step == "title":
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"step": "duration", "data.title": text}}
+            )
+            send_message(chat_id, "⏱ Enter duration")
+            return "ok"
+
+        if step == "duration":
+            try:
+                dur = int(text)
+                telegram_sessions.update_one(
+                    {"chat_id": chat_id},
+                    {"$set": {"step": "start", "data.duration": dur}}
+                )
+                send_message(chat_id, "📅 Enter start (YYYY-MM-DD HH:MM)")
+            except:
+                send_message(chat_id, "❌ Enter number")
+            return "ok"
+
+        if step == "start":
+            try:
+                dt = datetime.strptime(text, "%Y-%m-%d %H:%M")
+                telegram_sessions.update_one(
+                    {"chat_id": chat_id},
+                    {"$set": {"step": "upload", "data.start": dt.isoformat()}}
+                )
+                send_message(chat_id, "📎 Now upload file")
+            except:
+                send_message(chat_id, "❌ Wrong format")
+            return "ok"
+
+        send_message(chat_id, "Use /create_quiz")
+        return "ok"
+
+    # ================= CALLBACK =================
+    if "callback_query" in update:
+        cq = update["callback_query"]
+        chat_id = cq["message"]["chat"]["id"]
+        data_cb = cq["data"]
+
+        user = telegram_sessions.find_one({"chat_id": chat_id}) or {}
+
+        if data_cb == "edit_title":
+            telegram_sessions.update_one({"chat_id": chat_id}, {"$set": {"step": "title"}})
+            send_message(chat_id, "✏️ Enter new title")
+            return "ok"
+
+        if data_cb == "edit_duration":
+            telegram_sessions.update_one({"chat_id": chat_id}, {"$set": {"step": "duration"}})
+            send_message(chat_id, "⏱ Enter new duration")
+            return "ok"
+
+        if data_cb == "edit_start":
+            telegram_sessions.update_one({"chat_id": chat_id}, {"$set": {"step": "start"}})
+            send_message(chat_id, "📅 Enter new date")
+            return "ok"
+
+        if data_cb == "final_submit":
+            data_u = user.get("data", {})
+            qs = user.get("questions", [])
+
+            if not data_u or not qs:
+                send_message(chat_id, "⚠️ Missing data")
                 return "ok"
 
-            data_u = user["data"]
             start = datetime.fromisoformat(data_u["start"])
             duration = int(data_u["duration"])
             end = start + timedelta(minutes=duration)
+
             quiz_id = str(uuid.uuid4())[:8]
 
-            # save quiz
             quiz.insert_one({
                 "quiz_id": quiz_id,
                 "title": data_u["title"],
                 "start_time": start.isoformat(),
                 "end_time": end.isoformat(),
-                "duration": duration,
-                "created_at": datetime.now()
+                "duration": duration
             })
 
             for q in qs:
@@ -942,17 +1107,14 @@ def telegram_webhook():
 
             telegram_sessions.delete_one({"chat_id": chat_id})
 
-            join_url = f"{request.host_url}join/{quiz_id}"
-            qr_bytes = build_qr_bytes(join_url)
+            img = generate_styled_qr_card(quiz_id, data_u["title"], duration)
 
-            data_u = user["data"]
-            title = data_u["title"]
-
-            img = generate_styled_qr_card(quiz_id, title, duration)
-
-            send_message(chat_id, f"✅ Quiz Created!\n\n🔗 {request.host_url}join/{quiz_id}")
+            send_message(chat_id, f"✅ Quiz Created\n{request.host_url}join/{quiz_id}")
             send_photo(chat_id, img)
+
             return "ok"
+
+    return "ok"
 
         
 @app.route("/privacy")
