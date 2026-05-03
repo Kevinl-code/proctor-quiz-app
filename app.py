@@ -6,7 +6,6 @@ import pandas as pd
 from io import BytesIO 
 from requests.auth import HTTPBasicAuth
 from PIL import Image, ImageDraw
-import qrcode
 from qrcode.constants import ERROR_CORRECT_H
 
 app = Flask(__name__)
@@ -546,7 +545,7 @@ def generate_styled_qr_card(quiz_id, title, duration):
 
     draw.text((90, 20), "Quiz ID: " + quiz_id, fill="white", font=font_small)
     draw.text((70, 45), title[:20], fill="white", font=font_title)
-    draw.text((80, 70), f"Duration: {duration} mins", fill="white", font=font_small)
+    draw.text((60, 70), f"Duration: {duration} mins", fill="white", font=font_small)
     draw.text((80, 320), "Scan to Join", fill="white", font=font_small)
 
     # ================= SAVE =================
@@ -597,7 +596,8 @@ def telegram_webhook():
             parsed = []
 
             try:
-                if filename.lower().endswith(".pdf"):
+                mime = doc.get("mime_type", "")
+                if "pdf" in mime:
                     with pdfplumber.open(filename) as pdf:
                         lines = []
                         for p in pdf.pages:
@@ -616,13 +616,9 @@ def telegram_webhook():
                     parsed = parse_block_questions(lines)
 
                 elif filename.lower().endswith(".csv"):
-                    df = pd.read_csv(filename)
-                    for _, r in df.iterrows():
-                        parsed.append({
-                            "question": str(r["question"]),
-                            "options": [r["A"], r["B"], r["C"], r["D"]],
-                            "answer": str(r["answer"]).strip().upper()
-                        })
+                    df.columns = df.columns.str.strip().str.lower()
+
+                    parsed.append({"question": str(r["question"]),"options": [r["a"], r["b"], r["c"], r["d"]],"answer": str(r["answer"]).strip().upper()})
                 else:
                     send_message(chat_id, "❌ Unsupported file type", edit_menu_kb())
                     return "ok"
@@ -636,8 +632,8 @@ def telegram_webhook():
 
             # store questions in session
             telegram_sessions.update_one(
-                {"chat_id": chat_id},
-                {"$set": {"questions": parsed, "step": "review"}},
+                if user and user.get("step") == "review":
+            send_message(chat_id, "Use buttons to edit or submit", edit_menu_kb()),
                 upsert=True
             )
 
@@ -685,7 +681,7 @@ def telegram_webhook():
 
         if tl in ("/upload", "upload"):
             # guard: require title, duration, start
-            missing = require_prereq(user)
+            missing = require_prereq(user or {})
             if missing:
                 send_message(chat_id, f"⚠️ Fill first: {', '.join(missing)}")
                 return "ok"
@@ -837,9 +833,13 @@ def telegram_webhook():
             join_url = f"{request.host_url}join/{quiz_id}"
             qr_bytes = build_qr_bytes(join_url)
 
+            data_u = user["data"]
+            title = data_u["title"]
+
             img = generate_styled_qr_card(quiz_id, title, duration)
-            send_telegram_message(chat_id,f"✅ Quiz Created!\n\n🔗 {request.host_url}join/{quiz_id}")
-            send_telegram_photo(chat_id, img)
+
+            send_message(chat_id, f"✅ Quiz Created!\n\n🔗 {request.host_url}join/{quiz_id}")
+            send_photo(chat_id, img)
             return "ok"
 
         
