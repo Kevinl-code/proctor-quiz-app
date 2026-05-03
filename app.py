@@ -5,6 +5,9 @@ from datetime import datetime, timedelta
 import pandas as pd
 from io import BytesIO 
 from requests.auth import HTTPBasicAuth
+from PIL import Image, ImageDraw
+import qrcode
+from qrcode.constants import ERROR_CORRECT_H
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
