@@ -616,15 +616,16 @@ def telegram_webhook():
                     parsed = parse_block_questions(lines)
 
                 elif filename.lower().endswith(".csv"):
-                    import pandas as pd
                     df = pd.read_csv(filename)
+    
                     df.columns = df.columns.str.strip().str.lower()
+    
 
-                for _, r in df.iterrows():
-                    parsed.append({
-                    "question": str(r["question"]),
-                    "options": [r["a"], r["b"], r["c"], r["d"]],
-                    "answer": str(r["answer"]).strip().upper() })
+                    for _, r in df.iterrows():
+                        parsed.append({
+                            "question": str(r["question"]),
+                            "options": [r["a"], r["b"], r["c"], r["d"]],
+                            "answer": str(r["answer"]).strip().upper() })
                 else:
                     send_message(chat_id, "❌ Unsupported file type", edit_menu_kb())
                     return "ok"
@@ -637,12 +638,24 @@ def telegram_webhook():
                 return "ok"
 
             # store questions in session
+            # store questions in session
             telegram_sessions.update_one(
-                if user and user.get("step") == "review":
-            send_message(chat_id, "Use buttons to edit or submit", edit_menu_kb()),
+                {"chat_id": chat_id},
+                {
+                    "$set": {
+                        "questions": parsed,
+                        "step": "review"
+                    }
+                },
                 upsert=True
             )
-
+            
+            # send edit menu after upload
+            send_message(
+                chat_id,
+                "✅ Questions uploaded. Use buttons below to edit or submit.",
+                edit_menu_kb()
+            )
             # preview first 5
             preview = "\n\n".join([
                 f"{i+1}. {q['question']}\nA. {q['options'][0]}\nB. {q['options'][1]}\nC. {q['options'][2]}\nD. {q['options'][3]}\nAns: {q['answer']}"
