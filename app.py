@@ -766,24 +766,41 @@ def telegram_webhook():
             send_message(chat_id, "❌ Cancelled", main_menu_kb())
             return "ok"
     
-        # ===== FALLBACK =====
-        send_message(chat_id, "⚠️ Unknown action", main_menu_kb())
-        return "ok"
-
+        
+        
+        if data_cb == "final_submit":
+            if not user:
+                send_message(chat_id, "⚠️ No active session", main_menu_kb())
+                return "ok"
+        
+            missing = require_prereq(user)
+            if missing:
+                send_message(chat_id, f"⚠️ Missing: {', '.join(missing)}", edit_menu_kb())
+                return "ok"
+        
+            qs = user.get("questions") or []
+            if not qs:
+                send_message(chat_id, "⚠️ No questions uploaded", edit_menu_kb())
+                return "ok"
+        
+            data_u = user["data"]
+        
+            # ✅ CORRECT INDENT STARTS HERE
             start = datetime.fromisoformat(data_u["start"])
             duration = int(data_u["duration"])
             end = start + timedelta(minutes=duration)
-
             quiz_id = str(uuid.uuid4())[:8]
-
+        
+            # save quiz
             quiz.insert_one({
                 "quiz_id": quiz_id,
                 "title": data_u["title"],
                 "start_time": start.isoformat(),
                 "end_time": end.isoformat(),
-                "duration": duration
+                "duration": duration,
+                "created_at": datetime.now()
             })
-
+        
             for q in qs:
                 questions.insert_one({
                     "quiz_id": quiz_id,
@@ -791,14 +808,25 @@ def telegram_webhook():
                     "options": q["options"],
                     "answer": q["answer"]
                 })
-
+        
             telegram_sessions.delete_one({"chat_id": chat_id})
-
-            img = generate_styled_qr_card(quiz_id, data_u["title"], duration)
-
-            send_message(chat_id, f"✅ Quiz Created\n{request.host_url}join/{quiz_id}")
+        
+            join_url = f"{request.host_url}join/{quiz_id}"
+        
+            img = generate_styled_qr_card(
+                quiz_id,
+                data_u["title"],
+                duration
+            )
+        
+            send_message(chat_id, f"✅ Quiz Created!\n\n🔗 {join_url}")
             send_photo(chat_id, img)
+        
+            return "ok"
 
+            # ===== FALLBACK =====
+            # ===== FALLBACK =====
+            send_message(chat_id, "⚠️ Unknown action", main_menu_kb())
             return "ok"
 
     return "ok"
