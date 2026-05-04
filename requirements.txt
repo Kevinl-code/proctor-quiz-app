@@ -8,3 +8,4 @@ qrcode
 gunicorn
 requests
 twilio
+python-dotenv
