@@ -12,7 +12,7 @@ app = Flask(__name__)
 app.secret_key = 'supersecretkey'
 
 # ================= DATABASE =================
-client = MongoClient("mongodb://Kevin2003:%40Kevin2003@ac-gjdvsbl-shard-00-00.gpbpget.mongodb.net:27017,ac-gjdvsbl-shard-00-01.gpbpget.mongodb.net:27017,ac-gjdvsbl-shard-00-02.gpbpget.mongodb.net:27017/?ssl=true&replicaSet=atlas-dc5j3m-shard-0&authSource=admin&appName=proctor")
+client = MongoClient()
 db = client['proctor']
 
 users_collection = db['users']
@@ -28,7 +28,7 @@ UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # ================= TELEGRAM =================
-BOT_TOKEN = "8668408547:AAHf6msPpSEGfeIGEnG6vAGdLS7YLcqdOfk"
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 def send_message(chat_id, text):
