@@ -4,16 +4,30 @@ import re, os, io, qrcode, docx, requests, uuid, pdfplumber
 from datetime import datetime, timedelta
 import pandas as pd
 from io import BytesIO 
+from dotenv import load_dotenv
 from requests.auth import HTTPBasicAuth
 from PIL import Image, ImageDraw
 from qrcode.constants import ERROR_CORRECT_H
+from telegram import Bot
+
+load_dotenv()
+
+MONGO_URI = os.getenv("MONGO_URI")
+client = MongoClient(MONGO_URI)
+db = client['proctor']
+
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
+bot = Bot(token=BOT_TOKEN)
+
+
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
 
+
 # ================= DATABASE =================
-client = MongoClient()
-db = client['proctor']
+
 
 users_collection = db['users']
 quiz = db["quizzes"]
@@ -28,8 +42,6 @@ UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # ================= TELEGRAM =================
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 def send_message(chat_id, text):
     requests.post(f"{TELEGRAM_API}/sendMessage", json={
