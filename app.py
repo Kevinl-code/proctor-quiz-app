@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from requests.auth import HTTPBasicAuth
 from PIL import Image, ImageDraw
 from qrcode.constants import ERROR_CORRECT_H
+import telegram
 from telegram import Bot
 
 load_dotenv()
