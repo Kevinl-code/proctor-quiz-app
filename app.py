@@ -422,7 +422,7 @@ def get_scores():
 
 
 # ================= TELEGRAM =================
-BOT_TOKEN = "8668408547:AAHf6msPpSEGfeIGEnG6vAGdLS7YLcqdOfk"
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 telegram_sessions = db["telegram_sessions"]
 
