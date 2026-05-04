@@ -9,7 +9,7 @@ from requests.auth import HTTPBasicAuth
 from PIL import Image, ImageDraw
 from qrcode.constants import ERROR_CORRECT_H
 import telegram
-from telegram import Bot
+#from telegram import Bot
 
 load_dotenv()
 
@@ -19,7 +19,7 @@ db = client['proctor']
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
-bot = Bot(token=BOT_TOKEN)
+#bot = Bot(token=BOT_TOKEN)
 
 
 
