@@ -15,17 +15,16 @@ load_dotenv()
 
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
-db = client['proctor']
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+SECRET_KEY = os.getenv("SECRET_KEY", "fallback_secret")
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 #bot = Bot(token=BOT_TOKEN)
 
 
 
 app = Flask(__name__)
-app.secret_key = 'supersecretkey'
-
+app.secret_key = SECRET_KEY
 
 # ================= DATABASE =================
 
@@ -423,7 +422,7 @@ def get_scores():
 
 
 # ================= TELEGRAM =================
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 telegram_sessions = db["telegram_sessions"]
 
@@ -730,120 +729,139 @@ def telegram_webhook():
         user = telegram_sessions.find_one({"chat_id": chat_id})
     
         # ===== CREATE =====
+@app.route("/telegram", methods=["POST"])
+def telegram_webhook():
+    update = request.json or {}
+
+    # ================= MESSAGE =================
+    if "message" in update:
+        msg = update["message"]
+        chat_id = msg["chat"]["id"]
+        text = msg.get("text", "").strip()
+
+        user = telegram_sessions.find_one({"chat_id": chat_id}) or {}
+        step = user.get("step")
+        data = user.get("data", {})
+
+        # START
+        if text == "/start":
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"step": None, "data": {}}},
+                upsert=True
+            )
+
+            send_message(chat_id, "👋 Welcome to PQDS Bot", main_menu_kb())
+            return "ok"
+
+        # TITLE INPUT
+        if step == "title":
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"data.title": text, "step": None}}
+            )
+            send_message(chat_id, "✅ Title saved", edit_menu_kb())
+            return "ok"
+
+        # DURATION INPUT
+        if step == "duration":
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"data.duration": int(text), "step": None}}
+            )
+            send_message(chat_id, "✅ Duration saved", edit_menu_kb())
+            return "ok"
+
+        # START TIME INPUT
+        if step == "start":
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"data.start": text, "step": None}}
+            )
+            send_message(chat_id, "✅ Start time saved", edit_menu_kb())
+            return "ok"
+
+    # ================= CALLBACK BUTTONS =================
+    if "callback_query" in update:
+        cb = update["callback_query"]
+        chat_id = cb["message"]["chat"]["id"]
+        data_cb = cb["data"]
+
+        user = telegram_sessions.find_one({"chat_id": chat_id}) or {}
+        data = user.get("data", {})
+
+        # CREATE
         if data_cb == "create":
             telegram_sessions.update_one(
                 {"chat_id": chat_id},
-                {"$set": {"step": "title", "data": {}}},
+                {"$set": {"step": None, "data": {}}},
                 upsert=True
             )
-            send_message(chat_id, "📘 Enter Quiz Title")
+            send_message(chat_id, "Enter Quiz Title:")
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"step": "title"}}
+            )
             return "ok"
-    
-        # ===== HELP =====
-        if data_cb == "help":
-            send_message(chat_id, "Create → Fill details → Upload → Preview → Submit", main_menu_kb())
-            return "ok"
-    
-        # ===== EDIT TITLE =====
+
+        # EDITS
         if data_cb == "edit_title":
-            telegram_sessions.update_one({"chat_id": chat_id}, {"$set": {"step": "title"}})
-            send_message(chat_id, "✏️ Enter new title")
-            return "ok"
-    
-        # ===== EDIT DURATION =====
-        if data_cb == "edit_duration":
-            telegram_sessions.update_one({"chat_id": chat_id}, {"$set": {"step": "duration"}})
-            send_message(chat_id, "⏱ Enter new duration")
-            return "ok"
-    
-        # ===== EDIT START =====
-        if data_cb == "edit_start":
-            telegram_sessions.update_one({"chat_id": chat_id}, {"$set": {"step": "start"}})
-            send_message(chat_id, "📅 Enter new start (YYYY-MM-DD HH:MM)")
-            return "ok"
-    
-        # ===== REUPLOAD =====
-        if data_cb == "reupload":
-            missing = require_prereq(user or {})
-            if missing:
-                send_message(chat_id, f"⚠️ Fill first: {', '.join(missing)}")
-                return "ok"
-    
-            telegram_sessions.update_one({"chat_id": chat_id}, {"$set": {"step": "upload"}})
-            send_message(chat_id, "📎 Upload new questions file")
-            return "ok"
-    
-        # ===== CANCEL =====
-        if data_cb == "cancel":
+            send_message(chat_id, "Enter new title:")
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"step": "title"}}
+            )
+
+        elif data_cb == "edit_duration":
+            send_message(chat_id, "Enter duration (minutes):")
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"step": "duration"}}
+            )
+
+        elif data_cb == "edit_start":
+            send_message(chat_id, "Enter start time (YYYY-MM-DD HH:MM):")
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"step": "start"}}
+            )
+
+        elif data_cb == "cancel":
             telegram_sessions.delete_one({"chat_id": chat_id})
             send_message(chat_id, "❌ Cancelled", main_menu_kb())
-            return "ok"
-    
-        
-        
-        if data_cb == "final_submit":
-            if not user:
-                send_message(chat_id, "⚠️ No active session", main_menu_kb())
-                return "ok"
-        
+
+        elif data_cb == "final_submit":
+
             missing = require_prereq(user)
             if missing:
-                send_message(chat_id, f"⚠️ Missing: {', '.join(missing)}", edit_menu_kb())
+                send_message(chat_id, f"⚠️ Missing: {', '.join(missing)}")
                 return "ok"
-        
-            qs = user.get("questions") or []
-            if not qs:
-                send_message(chat_id, "⚠️ No questions uploaded", edit_menu_kb())
-                return "ok"
-        
-            data_u = user["data"]
-        
-            # ✅ CORRECT INDENT STARTS HERE
-            start = datetime.fromisoformat(data_u["start"])
-            duration = int(data_u["duration"])
-            end = start + timedelta(minutes=duration)
+
             quiz_id = str(uuid.uuid4())[:8]
-        
-            # save quiz
+
+            start_time = datetime.fromisoformat(data["start"])
+            duration = int(data["duration"])
+            end_time = start_time + timedelta(minutes=duration)
+
             quiz.insert_one({
                 "quiz_id": quiz_id,
-                "title": data_u["title"],
-                "start_time": start.isoformat(),
-                "end_time": end.isoformat(),
-                "duration": duration,
-                "created_at": datetime.now()
+                "title": data["title"],
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+                "duration": duration
             })
-        
-            for q in qs:
-                questions.insert_one({
-                    "quiz_id": quiz_id,
-                    "question": q["question"],
-                    "options": q["options"],
-                    "answer": q["answer"]
-                })
-        
-            telegram_sessions.delete_one({"chat_id": chat_id})
-        
-            join_url = f"{request.host_url}join/{quiz_id}"
-        
-            img = generate_styled_qr_card(
-                quiz_id,
-                data_u["title"],
-                duration
-            )
-        
-            send_message(chat_id, f"✅ Quiz Created!\n\n🔗 {join_url}")
-            send_photo(chat_id, img)
-        
-            return "ok"
 
-            # ===== FALLBACK =====
-            # ===== FALLBACK =====
-            send_message(chat_id, "⚠️ Unknown action", main_menu_kb())
-            return "ok"
+            join_url = f"{request.host_url}join/{quiz_id}"
+            img = generate_styled_qr_card(quiz_id, data["title"], duration)
+
+            send_message(chat_id, f"✅ Quiz Created!\n{join_url}")
+            send_photo(chat_id, img)
+
+            telegram_sessions.delete_one({"chat_id": chat_id})
+
+        return "ok"
 
     return "ok"
-
         
 @app.route("/privacy")
 def privacy():
