@@ -583,42 +583,56 @@ def telegram_webhook():
         step = user.get("step")
         data = user.get("data", {})
 
-        # START
-        if text == "/start":
-            telegram_sessions.update_one(
-                {"chat_id": chat_id},
-                {"$set": {"step": None, "data": {}}},
-                upsert=True
-            )
+        # ===== START =====
+        if text.lower() == "/start":
+            telegram_sessions.delete_one({"chat_id": chat_id})
 
-            send_message(chat_id, "👋 Welcome to PQDS Bot", main_menu_kb())
+            send_message(
+                chat_id,
+                "🤖 Welcome to Quiz Bot",
+                main_menu_kb()
+            )
             return "ok"
 
-        # TITLE INPUT
+        # ===== TITLE INPUT =====
         if step == "title":
             telegram_sessions.update_one(
                 {"chat_id": chat_id},
-                {"$set": {"data.title": text, "step": None}}
+                {"$set": {"data.title": text, "step": None}},
+                upsert=True
             )
             send_message(chat_id, "✅ Title saved", edit_menu_kb())
             return "ok"
 
-        # DURATION INPUT
+        # ===== DURATION INPUT =====
         if step == "duration":
-            telegram_sessions.update_one(
-                {"chat_id": chat_id},
-                {"$set": {"data.duration": int(text), "step": None}}
-            )
-            send_message(chat_id, "✅ Duration saved", edit_menu_kb())
+            try:
+                duration = int(text)
+                telegram_sessions.update_one(
+                    {"chat_id": chat_id},
+                    {"$set": {"data.duration": duration, "step": None}},
+                    upsert=True
+                )
+                send_message(chat_id, "✅ Duration saved", edit_menu_kb())
+            except:
+                send_message(chat_id, "⚠️ Enter valid number (minutes)")
             return "ok"
 
-        # START TIME INPUT
+        # ===== START TIME INPUT =====
         if step == "start":
-            telegram_sessions.update_one(
-                {"chat_id": chat_id},
-                {"$set": {"data.start": text, "step": None}}
-            )
-            send_message(chat_id, "✅ Start time saved", edit_menu_kb())
+            try:
+                # accept "YYYY-MM-DD HH:MM"
+                dt = datetime.strptime(text, "%Y-%m-%d %H:%M")
+
+                telegram_sessions.update_one(
+                    {"chat_id": chat_id},
+                    {"$set": {"data.start": dt.isoformat(), "step": None}},
+                    upsert=True
+                )
+                send_message(chat_id, "✅ Start time saved", edit_menu_kb())
+
+            except:
+                send_message(chat_id, "⚠️ Format: YYYY-MM-DD HH:MM")
             return "ok"
 
     # ================= CALLBACK BUTTONS =================
@@ -627,77 +641,93 @@ def telegram_webhook():
         chat_id = cb["message"]["chat"]["id"]
         data_cb = cb["data"]
 
+        # ✅ FIXED (was query["id"])
+        requests.post(f"{TELEGRAM_API}/answerCallbackQuery", json={
+            "callback_query_id": cb["id"]
+        })
+
         user = telegram_sessions.find_one({"chat_id": chat_id}) or {}
         data = user.get("data", {})
 
-        # CREATE
+        # ===== CREATE =====
         if data_cb == "create":
             telegram_sessions.update_one(
                 {"chat_id": chat_id},
-                {"$set": {"step": None, "data": {}}},
+                {"$set": {"step": "title", "data": {}}},
                 upsert=True
             )
             send_message(chat_id, "Enter Quiz Title:")
-            telegram_sessions.update_one(
-                {"chat_id": chat_id},
-                {"$set": {"step": "title"}}
-            )
             return "ok"
 
-        # EDITS
+        # ===== EDIT TITLE =====
         if data_cb == "edit_title":
             send_message(chat_id, "Enter new title:")
             telegram_sessions.update_one(
                 {"chat_id": chat_id},
-                {"$set": {"step": "title"}}
+                {"$set": {"step": "title"}},
+                upsert=True
             )
+            return "ok"
 
-        elif data_cb == "edit_duration":
+        # ===== EDIT DURATION =====
+        if data_cb == "edit_duration":
             send_message(chat_id, "Enter duration (minutes):")
             telegram_sessions.update_one(
                 {"chat_id": chat_id},
-                {"$set": {"step": "duration"}}
+                {"$set": {"step": "duration"}},
+                upsert=True
             )
+            return "ok"
 
-        elif data_cb == "edit_start":
+        # ===== EDIT START =====
+        if data_cb == "edit_start":
             send_message(chat_id, "Enter start time (YYYY-MM-DD HH:MM):")
             telegram_sessions.update_one(
                 {"chat_id": chat_id},
-                {"$set": {"step": "start"}}
+                {"$set": {"step": "start"}},
+                upsert=True
             )
+            return "ok"
 
-        elif data_cb == "cancel":
+        # ===== CANCEL =====
+        if data_cb == "cancel":
             telegram_sessions.delete_one({"chat_id": chat_id})
             send_message(chat_id, "❌ Cancelled", main_menu_kb())
+            return "ok"
 
-        elif data_cb == "final_submit":
+        # ===== FINAL SUBMIT =====
+        if data_cb == "final_submit":
 
             missing = require_prereq(user)
             if missing:
                 send_message(chat_id, f"⚠️ Missing: {', '.join(missing)}")
                 return "ok"
 
-            quiz_id = str(uuid.uuid4())[:8]
+            try:
+                quiz_id = str(uuid.uuid4())[:8]
 
-            start_time = datetime.fromisoformat(data["start"])
-            duration = int(data["duration"])
-            end_time = start_time + timedelta(minutes=duration)
+                start_time = datetime.fromisoformat(data["start"])
+                duration = int(data["duration"])
+                end_time = start_time + timedelta(minutes=duration)
 
-            quiz.insert_one({
-                "quiz_id": quiz_id,
-                "title": data["title"],
-                "start_time": start_time.isoformat(),
-                "end_time": end_time.isoformat(),
-                "duration": duration
-            })
+                quiz.insert_one({
+                    "quiz_id": quiz_id,
+                    "title": data["title"],
+                    "start_time": start_time.isoformat(),
+                    "end_time": end_time.isoformat(),
+                    "duration": duration
+                })
 
-            join_url = f"{request.host_url}join/{quiz_id}"
-            img = generate_styled_qr_card(quiz_id, data["title"], duration)
+                join_url = f"{request.host_url}join/{quiz_id}"
+                img = generate_styled_qr_card(quiz_id, data["title"], duration)
 
-            send_message(chat_id, f"✅ Quiz Created!\n{join_url}")
-            send_photo(chat_id, img)
+                send_message(chat_id, f"✅ Quiz Created!\n{join_url}")
+                send_photo(chat_id, img)
 
-            telegram_sessions.delete_one({"chat_id": chat_id})
+                telegram_sessions.delete_one({"chat_id": chat_id})
+
+            except Exception as e:
+                send_message(chat_id, f"❌ Error: {str(e)}")
 
         return "ok"
 
