@@ -634,6 +634,20 @@ def telegram_webhook():
             except:
                 send_message(chat_id, "⚠️ Format: YYYY-MM-DD HH:MM")
             return "ok"
+        if step == "upload":
+            try:
+                # accept "YYYY-MM-DD HH:MM"
+                telegram_sessions.update_one(
+                    {"chat_id": chat_id},
+                    {"$set": {"data.upload":file, "step": None}},
+                    upsert=True
+                )
+                send_message(chat_id, "✅ File uploaded", edit_menu_kb())
+
+            except:
+                send_message(chat_id, "⚠️ Format: Invalid Format")
+            return "ok"
+
 
     # ================= CALLBACK BUTTONS =================
     if "callback_query" in update:
@@ -685,6 +699,14 @@ def telegram_webhook():
             telegram_sessions.update_one(
                 {"chat_id": chat_id},
                 {"$set": {"step": "start"}},
+                upsert=True
+            )
+            return "ok"
+        if data_cb == "reupload":
+            send_message(chat_id, "Reupload The Questions:")
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"step": "upload"}},
                 upsert=True
             )
             return "ok"
