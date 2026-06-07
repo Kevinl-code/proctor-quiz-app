@@ -20,6 +20,55 @@
 
     <!-- Android / Chrome Manifest -->
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <style>
+        .role-options{
+    display:flex;
+    gap:15px;
+    justify-content:center;
+    margin:20px 0;
+}
+
+.role-card{
+    position:relative;
+    width:150px;
+    padding:15px;
+    border:2px solid #ddd;
+    border-radius:12px;
+    cursor:pointer;
+    text-align:center;
+    transition:.3s;
+}
+
+.role-card input{
+    display:none;
+}
+
+.role-card span{
+    font-weight:600;
+}
+
+.role-card.professor{
+    border-color:#3b82f6;
+}
+
+.role-card.student{
+    border-color:#10b981;
+}
+
+.role-card input:checked + span{
+    color:white;
+}
+
+.role-card.professor:has(input:checked){
+    background:#3b82f6;
+    color:white;
+}
+
+.role-card.student:has(input:checked){
+    background:#10b981;
+    color:white;
+}
+    </style>
     </head>
     
 </head>
@@ -36,32 +85,35 @@
 
     </div>
 </div>
-        <div class="auth-container">
+       <div class="auth-container">
     <img src="/static/images/logo.png" class="page-logo">
-    <h2>PQDS</h2></div>
 
-    <center>
+    <div class="card">
+       
 <form action="/save-role" method="POST">
 
     <h2>Select Your Role</h2>
 
     <div class="role-options">
-  <label class="role-card professor">
-    <input type="radio" name="role" value="professor" required="">
-    <span>Professor</span>
-  </label>
 
-  <label class="role-card student">
-    <input type="radio" name="role" value="student" required>
-    <span>Student</span>
-  </label>
-</div>
+        <label class="role-card professor">
+            <input type="radio" name="role" value="professor" required>
+            <span>Professor</span>
+        </label>
 
-    <button type="submit">
+        <label class="role-card student">
+            <input type="radio" name="role" value="student" required>
+            <span>Student</span>
+        </label>
+
+    </div>
+
+    <button class="btn-primary" type="submit">
         Continue
     </button>
 
-</form>
-    </center>
+</form>  
+    </div>
+</div>
 </body>
 </html>
