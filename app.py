@@ -101,28 +101,50 @@ def google_authorize():
     # First Login
     if not user:
 
-        role = "student"
+    session["google_user"] = {
+        "name": user_info["name"],
+        "email": user_info["email"],
+        "picture": user_info.get("picture")
+    }
 
-        if email.endswith("@bhc.professor.com"):
-            role = "teacher"
-
-        users_collection.insert_one({
-            "name": user_info["name"],
-            "email": email,
-            "picture": user_info.get("picture"),
-            "role": role,
-            "google_login": True,
-            "created_at": datetime.now()
-        })
-
-        user = users_collection.find_one({
+    return redirect("/select-role")
+    user = users_collection.find_one({
             "email": email
         })
 
-    session["user"] = email
-    session["name"] = user["name"]
+@app.route("/select-role")
+def select_role():
 
-    if user["role"] == "teacher":
+    if "google_user" not in session:
+        return redirect("/login")
+
+    return render_template("select_role.html")
+
+@app.route("/save-role", methods=["POST"])
+def save_role():
+
+    if "google_user" not in session:
+        return redirect("/login")
+
+    role = request.form["role"]
+
+    user_data = session["google_user"]
+
+    users_collection.insert_one({
+        "name": user_data["name"],
+        "email": user_data["email"],
+        "picture": user_data.get("picture"),
+        "role": role,
+        "google_login": True,
+        "created_at": datetime.now()
+    })
+
+    session["user"] = user_data["email"]
+    session["name"] = user_data["name"]
+
+    session.pop("google_user")
+
+    if role == "professor":
         return redirect("/admin")
 
     return redirect("/student")
