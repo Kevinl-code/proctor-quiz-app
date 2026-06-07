@@ -1,5 +1,6 @@
-from flask import Flask, render_template, request, redirect, flash, jsonify, session, send_file, send_from_directory
+from flask import Flask, render_template, request, redirect, flash, jsonify, session, send_file, send_from_directory, url_for
 from pymongo import MongoClient
+from authlib.integrations.flask_client import OAuth
 import re, os, io, qrcode, docx, requests, uuid, pdfplumber
 from datetime import datetime, timedelta
 import pandas as pd
@@ -26,6 +27,19 @@ TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+
+oauth = OAuth(app)
+
+google = oauth.register(
+    name="google",
+    client_id=os.getenv("GOOGLE_CLIENT_ID"),
+    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+    server_metadata_url=
+        "https://accounts.google.com/.well-known/openid-configuration",
+    client_kwargs={
+        "scope": "openid email profile"
+    }
+)
 
 # ================= DATABASE =================
 
@@ -58,6 +72,60 @@ def spinner():
 # ================= AUTH =================
 teacher_pattern = re.compile(r'^[a-z0-9]+@bhc\.professor\.com$')
 student_pattern = re.compile(r'^[a-z0-9]+@bhc\.student\.com$')
+
+@app.route("/google-login")
+def google_login():
+
+    redirect_uri = url_for(
+        "google_authorize",
+        _external=True
+    )
+
+    return google.authorize_redirect(
+        redirect_uri
+    )
+    
+@app.route("/google-authorize")
+def google_authorize():
+
+    token = google.authorize_access_token()
+
+    user_info = token.get("userinfo")
+
+    email = user_info["email"]
+
+    user = users_collection.find_one({
+        "email": email
+    })
+
+    # First Login
+    if not user:
+
+        role = "student"
+
+        if email.endswith("@bhc.professor.com"):
+            role = "teacher"
+
+        users_collection.insert_one({
+            "name": user_info["name"],
+            "email": email,
+            "picture": user_info.get("picture"),
+            "role": role,
+            "google_login": True,
+            "created_at": datetime.now()
+        })
+
+        user = users_collection.find_one({
+            "email": email
+        })
+
+    session["user"] = email
+    session["name"] = user["name"]
+
+    if user["role"] == "teacher":
+        return redirect("/admin")
+
+    return redirect("/student")
 
 @app.route("/login", methods=["GET","POST"])
 def login():
