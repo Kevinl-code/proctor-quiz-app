@@ -69,21 +69,32 @@
     <span>Student</span>
   </label>
 </div>
- <button class="btn btn-light border w-20 mt-3" style="
+
+        <button class="btn-primary" type="submit">Sign Up</button>
+         </form>
+
+        <div class="divider">
+    <span>OR</span>
+</div>
+
+
+         <button type="button"
+        onclick="window.location.href='{{ url_for('google_login') }}'"
+        class="google-btn" style="
     padding-right: 10px;
     padding-left: 10px;
     padding-bottom: 10px;
     padding-top: 10px;
     width: 270px;
 ">
-   <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/google/google-original.svg" width="20
-       " style="
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/google/google-original.svg"
+         width="18"
+       style="
     border-top-width: 1px;
     width: 14px;
 ">Signup with Google
 </button>
-        <button class="btn-primary" type="submit">Sign Up</button>
-    </form>
+   
 
     <p style="text-align:center; margin-top:12px;">Already have an account? 
         <a href="/login" style="color: var(--accent);">Login</a>
