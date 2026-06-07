@@ -1,3 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Login</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}" sizes="32x32">
+<link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}" sizes="192x192">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='images/favicon.png') }}">
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}">
+
+ 
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/logo.png') }}">
+    <link rel="apple-touch-icon" sizes="152x152" href="{{ url_for('static', filename='images/logo.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/logo.png') }}">
+    <link rel="apple-touch-icon" sizes="167x167" href="{{ url_for('static', filename='images/logo.png') }}">
+
+    <!-- Android / Chrome Manifest -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    </head>
+    
+</head>
+<body>
+    <div id="splash">
+
+    <div class="logo-container">
+
+        <div class="spinner"></div>
+
+        <div class="logo-circle">
+            <img src="/static/images/logo.png" class="main-logo">
+        </div>
+
+    </div>
+</div>
+        <div class="auth-container">
+    <img src="/static/images/logo.png" class="page-logo">
+    <h2>PQDS</h2></div>
 <form action="/save-role" method="POST">
 
     <h2>Select Your Role</h2>
@@ -23,3 +64,5 @@
     </button>
 
 </form>
+</body>
+</html>
