@@ -45,21 +45,17 @@
 
     <h2>Select Your Role</h2>
 
-    <label>
-        <input type="radio"
-               name="role"
-               value="professor"
-               required>
-        Professor
-    </label>
+    <div class="role-options">
+  <label class="role-card professor">
+    <input type="radio" name="role" value="professor" required="">
+    <span>Professor</span>
+  </label>
 
-    <label>
-        <input type="radio"
-               name="role"
-               value="student"
-               required>
-        Student
-    </label>
+  <label class="role-card student">
+    <input type="radio" name="role" value="student" required>
+    <span>Student</span>
+  </label>
+</div>
 
     <button type="submit">
         Continue
