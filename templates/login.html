@@ -57,15 +57,17 @@
         <input type="password" name="password" placeholder="Password" required>
         <button class="btn-primary" type="submit">Login</button>
     </form>
-            <button class="btn btn-light border w-20 mt-3" style="
+           <button type="button"
+        onclick="window.location.href='{{ url_for('google_login') }}'"
+        class="google-btn" style="
     padding-right: 10px;
     padding-left: 10px;
     padding-bottom: 10px;
     padding-top: 10px;
     width: 270px;
 ">
-   <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/google/google-original.svg" width="20
-       " style="
+   <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/google/google-original.svg"
+         width="18" style="
     border-top-width: 1px;
     width: 14px;
 ">Continue with Google
