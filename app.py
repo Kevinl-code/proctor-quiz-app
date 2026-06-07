@@ -98,20 +98,24 @@ def google_authorize():
         "email": email
     })
 
-    # First Login
     if not user:
 
-    session["google_user"] = {
-        "name": user_info["name"],
-        "email": user_info["email"],
-        "picture": user_info.get("picture")
-    }
+        session["google_user"] = {
+            "name": user_info["name"],
+            "email": user_info["email"],
+            "picture": user_info.get("picture")
+        }
 
-    return redirect("/select-role")
-    user = users_collection.find_one({
-            "email": email
-        })
+        return redirect("/select-role")
 
+    session["user"] = user["email"]
+    session["name"] = user["name"]
+
+    if user["role"] == "professor":
+        return redirect("/admin")
+
+    return redirect("/student")
+    
 @app.route("/select-role")
 def select_role():
 
