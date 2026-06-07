@@ -10,3 +10,6 @@ requests
 twilio
 python-dotenv
 telegram
+Flask-Dance
+python-dotenv
+authlib
