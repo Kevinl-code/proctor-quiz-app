@@ -76,11 +76,13 @@ document.getElementById("manualQuestions").innerHTML=`
 
 
 // ================= UPLOAD MODE =================
+let currentMode = 'manual'; 
 
-function uploadMode(){
+function manualMode(){
+    currentMode = 'manual';
+    document.getElementById("uploadArea").style.display="none";
+    document.getElementById("manualQuestions").style.display="block";
 
-document.getElementById("manualQuestions").innerHTML=""
-document.getElementById("uploadArea").style.display="block"
 
 let input = document.getElementById("fileUpload")
 
@@ -94,6 +96,96 @@ input.onchange = function(){
 
 }
 
+function uploadMode(){
+    currentMode = 'upload';
+    document.getElementById("manualQuestions").style.display="none";
+    document.getElementById("uploadArea").style.display="block";
+    
+    let input = document.getElementById("fileUpload");
+    if(input){
+        input.onchange = function(){
+            let file = this.files[0];
+            document.getElementById("fileName").innerText = file ? "Selected: " + file.name : "No file selected";
+        }
+    }
+}
+
+// ================= FIXED UNIFIED CREATE/UPLOAD QUIZ =================
+async function createQuiz(){
+    let title = document.getElementById("quizTitle").value.trim();
+    let start = document.getElementById("quizStart").value;
+    let duration = parseInt(document.getElementById("quizDuration").value);
+
+    if(!title || !start || !duration){
+        alert("Fill all quiz details");
+        return;
+    }
+
+    let res;
+    let data;
+
+    if (currentMode === 'upload') {
+        // --- FILE UPLOAD MODE (Matches Telegram Workflow) ---
+        let fileInput = document.getElementById("fileUpload");
+        let file = fileInput.files[0];
+        if(!file){
+            alert("Please select a file to upload first.");
+            return;
+        }
+
+        let formData = new FormData();
+        formData.append("file", file);
+        formData.append("title", title);
+        formData.append("duration", duration);
+        formData.append("start", start);
+
+        // Pointing to your existing backend compilation block
+        res = await fetch("/upload_quiz_file", {
+            method: "POST",
+            body: formData
+        });
+        
+    } else {
+        // --- MANUAL INJECTION MODE ---
+        if(questions.length === 0){
+            alert("Add manual questions first or switch to upload mode.");
+            return;
+        }
+
+        let startDate = new Date(start);
+        let endDate = new Date(startDate.getTime() + duration * 60000);
+
+        res = await fetch("/create_quiz", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                title,
+                start,
+                end: endDate.toISOString(),
+                duration,
+                questions
+            })
+        });
+    }
+
+    data = await res.json();
+
+    if (res.ok) {
+        alert(data.msg || "Quiz Processed Successfully!");
+        // Generate QR Code dynamically on client interface
+        generateQR(data.quiz_id, title, duration);
+        
+        // Clean and Reset state structures
+        questions = [];
+        document.getElementById("quizTitle").value = "";
+        document.getElementById("quizStart").value = "";
+        document.getElementById("quizDuration").value = "";
+        document.getElementById("fileUpload").value = "";
+        document.getElementById("fileName").innerText = "No file selected";
+    } else {
+        alert("Error: " + (data.error || "Execution failed."));
+    }
+}
 
 // ================= ADD QUESTION =================
 
