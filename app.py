@@ -601,16 +601,24 @@ def telegram_webhook():
                 return "ok"
 
         # Processing dynamic document streams (nested properly inside message update structure)
+        # Processing dynamic document streams
         if "document" in msg:
             file_id = msg["document"]["file_id"]
+            file_name = msg["document"].get("file_name", "file.txt").lower()
+            
             res = requests.get(f"{TELEGRAM_API}/getFile", params={"file_id": file_id}).json()
             path = res["result"]["file_path"]
             file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{path}"
             file_data = requests.get(file_url).content
-            
+
             memory_file = BytesIO(file_data)
-            parsed_questions = extract_questions_from_file(memory_file, msg["document"]["file_name"].lower())
-            
+            parsed_questions = extract_questions_from_file(memory_file, file_name)
+
+            # CRITICAL VALIDATION CHECK
+            if not parsed_questions:
+                send_message(chat_id, "⚠️ No valid questions found! Ensure your file format matches perfectly (Question?, A., B., C., D., Answer: X).")
+                return "ok"
+
             telegram_sessions.update_one(
                 {"chat_id": chat_id},
                 {"$set": {"data.questions": parsed_questions, "step": None}}
