@@ -279,58 +279,180 @@ def upload_quiz_file():
     except Exception as e:
         return jsonify({"error": f"Failed to execute parsing operations: {str(e)}"}), 500
 
+@app.route("/upload_questions", methods=["POST"])
+def upload_questions():
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    if "file" not in request.files:
+        return jsonify({"error": "No file chunk found"}), 400
+
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "No selected file"}), 400
+
+    try:
+        memory_file = BytesIO(file.read())
+        parsed_questions = extract_questions_from_file(memory_file, file.filename.lower())
+
+        if not parsed_questions:
+            return jsonify({"error": "No valid questions could be parsed from the file structure."}), 400
+
+        return jsonify(parsed_questions)
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to execute parsing operations: {str(e)}"}), 500
+
 # ================= FILE PARSER MECHANISM =================
 def extract_questions_from_file(file, filename):
     parsed = []
-    if filename.endswith(".csv"):
-        df = pd.read_csv(file)
-        for _, r in df.iterrows():
-            parsed.append({
-                "question": str(r["question"]),
-                "options": [r["A"], r["B"], r["C"], r["D"]],
-                "answer": str(r["answer"]).strip().upper()
-            })
-    elif filename.endswith(".txt"):
-        lines = file.read().decode("utf-8").splitlines()
-        parsed.extend(parse_block_questions(lines))
-    elif filename.endswith(".docx"):
-        doc = docx.Document(file)
-        lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-        parsed.extend(parse_block_questions(lines))
-    elif filename.endswith(".pdf"):
-        with pdfplumber.open(file) as pdf:
-            lines = []
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    lines.extend(text.splitlines())
-        parsed.extend(parse_block_questions(lines))
+    try:
+        if filename.endswith(".csv"):
+            df = pd.read_csv(file)
+            # Strip whitespace from column names and convert to lowercase
+            df.columns = [str(col).strip().lower() for col in df.columns]
+            
+            # Helper to find a column name matching aliases
+            def get_col_value(row, aliases):
+                for alias in aliases:
+                    if alias in df.columns:
+                        return str(row[alias]).strip()
+                return ""
+
+            for _, r in df.iterrows():
+                q_text = get_col_value(r, ["question", "q", "questions", "text"])
+                opt_a = get_col_value(r, ["a", "option a", "option_a"])
+                opt_b = get_col_value(r, ["b", "option b", "option_b"])
+                opt_c = get_col_value(r, ["c", "option c", "option_c"])
+                opt_d = get_col_value(r, ["d", "option d", "option_d"])
+                ans_val = get_col_value(r, ["answer", "ans", "correct", "correct_answer"])
+                
+                if q_text and opt_a and opt_b and opt_c and opt_d and ans_val:
+                    # Resolve answer letter
+                    ans_val_upper = ans_val.upper()
+                    final_ans = ""
+                    if ans_val_upper in ["A", "B", "C", "D"]:
+                        final_ans = ans_val_upper
+                    else:
+                        # Check if the answer text matches any option value
+                        opts = [opt_a, opt_b, opt_c, opt_d]
+                        for idx, opt in enumerate(opts):
+                            if opt.lower() == ans_val.lower():
+                                letters = ["A", "B", "C", "D"]
+                                final_ans = letters[idx]
+                                break
+                    if final_ans:
+                        parsed.append({
+                            "question": q_text,
+                            "options": [opt_a, opt_b, opt_c, opt_d],
+                            "answer": final_ans
+                        })
+        elif filename.endswith(".txt"):
+            lines = file.read().decode("utf-8", errors="ignore").splitlines()
+            parsed.extend(parse_block_questions(lines))
+        elif filename.endswith(".docx"):
+            doc = docx.Document(file)
+            lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+            parsed.extend(parse_block_questions(lines))
+        elif filename.endswith(".pdf"):
+            with pdfplumber.open(file) as pdf:
+                lines = []
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text:
+                        lines.extend(text.splitlines())
+            parsed.extend(parse_block_questions(lines))
+    except Exception as e:
+        print(f"Error in extract_questions_from_file: {str(e)}")
+        raise e
     return parsed
+
+def finalize_question(q):
+    # Resolve answer if answer_text is present
+    if not q.get("answer") and q.get("answer_text"):
+        ans_text = q["answer_text"].strip().lower()
+        # Try to find which option matches ans_text
+        for idx, opt in enumerate(q["options"]):
+            if opt.strip().lower() == ans_text:
+                letters = ["A", "B", "C", "D"]
+                if idx < len(letters):
+                    q["answer"] = letters[idx]
+                    break
+    
+    # Clean up options (make sure there are exactly 4 options)
+    if len(q["options"]) == 4 and q.get("answer") in ["A", "B", "C", "D"]:
+        return {
+            "question": q["question"],
+            "options": q["options"],
+            "answer": q["answer"]
+        }
+    return None
 
 def parse_block_questions(lines):
     result = []
     current = None
+    
+    option_pattern = re.compile(r'^\s*([A-D])\s*[\.\)]\s*(.*)$', re.IGNORECASE)
+    # Identify answer lines: starts with ans/answer/correct answer, followed by delimiter, then the answer
+    answer_indicator_pattern = re.compile(r'^\s*(?:correct\s+)?ans(?:wer)?\s*[\:\-\s]\s*(.*)$', re.IGNORECASE)
 
     for line in lines:
-        line = line.strip()
-        if not line:
+        line_str = line.strip()
+        if not line_str:
             continue
 
-        if "?" in line:
-            if current and len(current["options"]) == 4 and current["answer"]:
-                result.append(current)
-            current = {"question": line, "options": [], "answer": ""}
-        elif line.startswith(("A.", "B.", "C.", "D.")):
+        # Check if it's an answer line
+        ans_indicator_match = answer_indicator_pattern.match(line_str)
+        if ans_indicator_match:
             if current:
-                current["options"].append(line[2:].strip())
-        elif "answer" in line.lower():
-            if current:
-                ans = line.split(":")[-1].strip().upper()
-                if ans in ["A","B","C","D"]:
-                    current["answer"] = ans
+                ans_val = ans_indicator_match.group(1).strip().upper()
+                # Extract letter if it starts with A/B/C/D
+                letter_match = re.match(r'^([A-D])(?:\b|[\.\)\s]|$)', ans_val)
+                if letter_match:
+                    current["answer"] = letter_match.group(1)
+                else:
+                    # Save raw answer text to match against options later
+                    current["answer_text"] = ans_val
+            continue
 
-    if current and len(current["options"]) == 4 and current["answer"]:
-        result.append(current)
+        # Check if it's an option
+        opt_match = option_pattern.match(line_str)
+        if opt_match:
+            if current:
+                current["options"].append(opt_match.group(2).strip())
+            continue
+
+        # Otherwise, it's a question text line
+        # Decide if we start a new question
+        is_new_q = False
+        q_text = line_str
+
+        # If it has a number prefix, e.g. "1. " or "Q1: " or "1) "
+        q_prefix_match = re.match(r'^\s*(?:q(?:uestion)?\s*)?\d+\s*[\.\)]\s*(.*)$', line_str, re.IGNORECASE)
+        if q_prefix_match:
+            is_new_q = True
+            q_text = q_prefix_match.group(1).strip()
+        elif "?" in line_str:
+            if current is None or len(current["options"]) > 0 or current.get("answer") or current.get("answer_text"):
+                is_new_q = True
+        elif current is not None and (len(current["options"]) > 0 or current.get("answer") or current.get("answer_text")):
+            is_new_q = True
+
+        if is_new_q or current is None:
+            if current:
+                # Finalize current question before starting new
+                finalized = finalize_question(current)
+                if finalized:
+                    result.append(finalized)
+            current = {"question": q_text, "options": [], "answer": ""}
+        else:
+            if len(current["options"]) == 0:
+                current["question"] += " " + line_str
+
+    if current:
+        finalized = finalize_question(current)
+        if finalized:
+            result.append(finalized)
 
     return result
 
@@ -606,24 +728,30 @@ def telegram_webhook():
             file_id = msg["document"]["file_id"]
             file_name = msg["document"].get("file_name", "file.txt").lower()
             
-            res = requests.get(f"{TELEGRAM_API}/getFile", params={"file_id": file_id}).json()
-            path = res["result"]["file_path"]
-            file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{path}"
-            file_data = requests.get(file_url).content
+            try:
+                res = requests.get(f"{TELEGRAM_API}/getFile", params={"file_id": file_id}).json()
+                if not res.get("ok"):
+                    send_message(chat_id, "⚠️ Failed to fetch file metadata from Telegram.")
+                    return "ok"
+                path = res["result"]["file_path"]
+                file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{path}"
+                file_data = requests.get(file_url).content
 
-            memory_file = BytesIO(file_data)
-            parsed_questions = extract_questions_from_file(memory_file, file_name)
+                memory_file = BytesIO(file_data)
+                parsed_questions = extract_questions_from_file(memory_file, file_name)
 
-            # CRITICAL VALIDATION CHECK
-            if not parsed_questions:
-                send_message(chat_id, "⚠️ No valid questions found! Ensure your file format matches perfectly (Question?, A., B., C., D., Answer: X).")
-                return "ok"
+                # CRITICAL VALIDATION CHECK
+                if not parsed_questions:
+                    send_message(chat_id, "⚠️ No valid questions found! Ensure your file format matches perfectly (Question?, A., B., C., D., Answer: X).")
+                    return "ok"
 
-            telegram_sessions.update_one(
-                {"chat_id": chat_id},
-                {"$set": {"data.questions": parsed_questions, "step": None}}
-            )
-            send_message(chat_id, f"✅ Processed {len(parsed_questions)} questions from file structure!", edit_menu_kb())
+                telegram_sessions.update_one(
+                    {"chat_id": chat_id},
+                    {"$set": {"data.questions": parsed_questions, "step": None}}
+                )
+                send_message(chat_id, f"✅ Processed {len(parsed_questions)} questions from file structure!", edit_menu_kb())
+            except Exception as e:
+                send_message(chat_id, f"⚠️ Error processing file: {str(e)}")
             return "ok"
 
     if "callback_query" in update:

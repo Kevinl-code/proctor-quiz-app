@@ -578,57 +578,85 @@ formData.append("file",file)
 
 
 
-let res=await fetch("/upload_questions",{
+try {
 
-method:"POST",
+    let res=await fetch("/upload_questions",{
 
-body:formData
+    method:"POST",
 
-})
+    body:formData
 
-
-
-let data=await res.json()
+    })
 
 
 
-if(!Array.isArray(data)){
+    let data;
 
-alert("Invalid format")
+    try {
 
-return
+        data = await res.json()
 
-}
+    } catch (e) {
 
+        alert("Upload failed: Invalid server response.")
 
+        return
 
-questions = data.filter(q => 
-
-    q.question && 
-
-    Array.isArray(q.options) && 
-
-    q.options.length === 4 && 
-
-    q.answer
-
-)
+    }
 
 
 
-if(questions.length === 0){
+    if (data && data.error) {
 
-    alert("No valid questions found in file")
+        alert("Error: " + data.error)
+
+        return
+
+    }
+
+
+
+    if(!Array.isArray(data)){
+
+    alert("Invalid format: Expected an array of questions.")
 
     return
 
+    }
+
+
+
+    questions = data.filter(q => 
+
+        q.question && 
+
+        Array.isArray(q.options) && 
+
+        q.options.length === 4 && 
+
+        q.answer
+
+    )
+
+
+
+    if(questions.length === 0){
+
+        alert("No valid questions found in file structure.")
+
+        return
+
+    }
+
+
+
+    alert(questions.length + " Valid Questions Uploaded")
+
+} catch (err) {
+
+    alert("An error occurred during file upload: " + err.message)
+
 }
-
-
-
-alert(questions.length + " Valid Questions Uploaded")
-
-
 
 }
 
