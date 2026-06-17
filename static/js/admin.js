@@ -1,445 +1,965 @@
 // ================= INIT =================
 
+
+
 window.addEventListener("load", () => {
-    let qr = document.getElementById("qrSection")
-    if(qr) qr.style.display = "none"
+
+let qr = document.getElementById("qrSection")
+
+if(qr) qr.style.display = "none"
+
 })
+
+
+
 
 
 // ================= FORMAT DATE =================
 
+
+
 function formatDateTime(dateStr){
+
+
 
 let d = new Date(dateStr)
 
+
+
 let days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
+
+
 
 let dayName = days[d.getDay()]
 
+
+
 let day = String(d.getDate()).padStart(2,'0')
+
 let month = String(d.getMonth()+1).padStart(2,'0')
+
 let year = d.getFullYear()
 
+
+
 let hours = d.getHours()
+
 let minutes = String(d.getMinutes()).padStart(2,'0')
+
+
 
 let ampm = hours >= 12 ? "PM" : "AM"
 
+
+
 hours = hours % 12 || 12
 
+
+
 return `${dayName}, ${day}-${month}-${year} ${hours}:${minutes} ${ampm}`
+
 }
+
+
+
 
 
 // ================= PANEL =================
 
+
+
 function showPanel(panel){
 
+
+
 ["quizPanel","activityPanel","scorePanel"].forEach(id=>{
-    document.getElementById(id).style.display="none"
+
+document.getElementById(id).style.display="none"
+
 })
+
+
 
 document.getElementById(panel).style.display="block"
 
+
+
 }
+
+
+
 
 
 // ================= STORAGE =================
 
+
+
 let questions=[]
+
+
+
 
 
 // ================= MANUAL MODE =================
 
+
+
 function manualMode(){
+
+
 
 document.getElementById("uploadArea").style.display="none"
 
+
+
 document.getElementById("manualQuestions").innerHTML=`
+
+
 
 <div style="margin-top:15px">
 
+
+
 <input id="q" placeholder="Question" class="input">
 
+
+
 <input id="a" placeholder="Option A" class="input">
+
 <input id="b" placeholder="Option B" class="input">
+
 <input id="c" placeholder="Option C" class="input">
+
 <input id="d" placeholder="Option D" class="input">
+
+
 
 <input id="ans" placeholder="Correct Answer (A/B/C/D)" class="input">
 
+
+
 <button class="btn-secondary" onclick="addQuestion()">Add Question</button>
 
+
+
 </div>
+
 `
+
 }
+
+
+
 
 
 // ================= UPLOAD MODE =================
 
-// ================= CLEAN UNIFIED CREATE/UPLOAD QUIZ =================
-async function createQuiz() {
-    let title = document.getElementById("quizTitle").value.trim();
-    let start = document.getElementById("quizStart").value;
-    let duration = parseInt(document.getElementById("quizDuration").value);
+let currentMode = 'manual';
 
-    if(!title || !start || !duration){
-        alert("Fill all quiz details");
-        return;
-    }
 
-    let res;
-    let data;
 
-    if (currentMode === 'upload') {
-        let fileInput = document.getElementById("fileUpload");
-        let file = fileInput.files[0];
-        if(!file){
-            alert("Please select a file to upload first.");
-            return;
-        }
+function manualMode(){
 
-        let formData = new FormData();
-        formData.append("file", file);
-        formData.append("title", title);
-        formData.append("duration", duration);
-        formData.append("start", start);
+currentMode = 'manual';
 
-        res = await fetch("/upload_quiz_file", {
-            method: "POST",
-            body: formData
-        });
-    } else {
-        if(questions.length === 0){
-            alert("Add manual questions first or switch to upload mode.");
-            return;
-        }
+document.getElementById("uploadArea").style.display="none";
 
-        let startDate = new Date(start);
-        let endDate = new Date(startDate.getTime() + duration * 60000);
+document.getElementById("manualQuestions").style.display="block";
 
-        res = await fetch("/create_quiz", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                title,
-                start,
-                end: endDate.toISOString(),
-                duration,
-                questions
-            })
-        });
-    }
 
-    data = await res.json();
 
-    if (res.ok) {
-        alert(data.msg || "Quiz Processed Successfully!");
-        generateQR(data.quiz_id, title, duration);
 
-        // Reset
-        questions = [];
-        document.getElementById("quizTitle").value = "";
-        document.getElementById("quizStart").value = "";
-        document.getElementById("quizDuration").value = "";
-        document.getElementById("fileUpload").value = "";
-        document.getElementById("fileName").innerText = "No file selected";
-    } else {
-        alert("Error: " + (data.error || "Execution failed."));
-    }
+
+let input = document.getElementById("fileUpload")
+
+
+
+if(input){
+
+input.onchange = function(){
+
+let file = this.files[0]
+
+document.getElementById("fileName").innerText =
+
+file ? "Selected: "+file.name : "No file selected"
+
 }
+
+}
+
+
+
+}
+
+
+
+function uploadMode(){
+
+currentMode = 'upload';
+
+document.getElementById("manualQuestions").style.display="none";
+
+document.getElementById("uploadArea").style.display="block";
+
+
+
+let input = document.getElementById("fileUpload");
+
+if(input){
+
+input.onchange = function(){
+
+let file = this.files[0];
+
+document.getElementById("fileName").innerText = file ? "Selected: " + file.name : "No file selected";
+
+}
+
+}
+
+}
+
+
+
+// ================= FIXED UNIFIED CREATE/UPLOAD QUIZ =================
+
+async function createQuiz(){
+
+let title = document.getElementById("quizTitle").value.trim();
+
+let start = document.getElementById("quizStart").value;
+
+let duration = parseInt(document.getElementById("quizDuration").value);
+
+
+
+if(!title || !start || !duration){
+
+alert("Fill all quiz details");
+
+return;
+
+}
+
+
+
+let res;
+
+let data;
+
+
+
+if (currentMode === 'upload') {
+
+// --- FILE UPLOAD MODE (Matches Telegram Workflow) ---
+
+let fileInput = document.getElementById("fileUpload");
+
+let file = fileInput.files[0];
+
+if(!file){
+
+alert("Please select a file to upload first.");
+
+return;
+
+}
+
+
+
+let formData = new FormData();
+
+formData.append("file", file);
+
+formData.append("title", title);
+
+formData.append("duration", duration);
+
+formData.append("start", start);
+
+
+
+// Pointing to your existing backend compilation block
+
+res = await fetch("/upload_quiz_file", {
+
+method: "POST",
+
+body: formData
+
+});
+
+
+
+} else {
+
+// --- MANUAL INJECTION MODE ---
+
+if(questions.length === 0){
+
+alert("Add manual questions first or switch to upload mode.");
+
+return;
+
+}
+
+
+
+let startDate = new Date(start);
+
+let endDate = new Date(startDate.getTime() + duration * 60000);
+
+
+
+res = await fetch("/create_quiz", {
+
+method: "POST",
+
+headers: {"Content-Type": "application/json"},
+
+body: JSON.stringify({
+
+title,
+
+start,
+
+end: endDate.toISOString(),
+
+duration,
+
+questions
+
+})
+
+});
+
+}
+
+
+
+data = await res.json();
+
+
+
+if (res.ok) {
+
+alert(data.msg || "Quiz Processed Successfully!");
+
+// Generate QR Code dynamically on client interface
+
+generateQR(data.quiz_id, title, duration);
+
+
+
+// Clean and Reset state structures
+
+questions = [];
+
+document.getElementById("quizTitle").value = "";
+
+document.getElementById("quizStart").value = "";
+
+document.getElementById("quizDuration").value = "";
+
+document.getElementById("fileUpload").value = "";
+
+document.getElementById("fileName").innerText = "No file selected";
+
+} else {
+
+alert("Error: " + (data.error || "Execution failed."));
+
+}
+
+}
+
+
 
 // ================= ADD QUESTION =================
 
+
+
 function addQuestion(){
 
+
+
 let q=document.getElementById("q").value.trim()
+
 let a=document.getElementById("a").value.trim()
+
 let b=document.getElementById("b").value.trim()
+
 let c=document.getElementById("c").value.trim()
+
 let d=document.getElementById("d").value.trim()
+
 let ans=document.getElementById("ans").value.trim().toUpperCase()
 
+
+
 if(!q || !a || !b || !c || !d || !ans){
+
 alert("Fill all fields")
+
 return
+
 }
 
+
+
 questions.push({
+
 question:q,
+
 options:[a,b,c,d],
+
 answer:ans
+
 })
+
+
 
 alert("Question Added")
 
+
+
 document.querySelectorAll("#manualQuestions input").forEach(i=>i.value="")
 
+
+
 }
+
+
+
 
 
 // ================= CREATE QUIZ =================
 
+
+
 async function createQuiz(){
 
+
+
 let title=document.getElementById("quizTitle").value.trim()
+
 let start=document.getElementById("quizStart").value
+
 let duration=parseInt(document.getElementById("quizDuration").value)
 
+
+
 if(!title || !start || !duration){
+
 alert("Fill all quiz details")
+
 return
+
 }
+
+
 
 if(questions.length===0){
+
 alert("Add or upload questions first")
+
 return
+
 }
 
+
+
 // calculate end time
+
 let startDate=new Date(start)
+
 let endDate=new Date(startDate.getTime() + duration*60000)
 
+
+
 let res=await fetch("/create_quiz",{
+
 method:"POST",
+
 headers:{"Content-Type":"application/json"},
+
 body:JSON.stringify({
+
 title,
+
 start,
+
 end:endDate.toISOString(),
+
 duration,
+
 questions
-})
+
 })
 
+})
+
+
+
 let data=await res.json()
+
+
 
 alert(data.msg)
 
+
+
 // ✅ GENERATE QR
+
 generateQR(data.quiz_id, title, duration)
 
+
+
 // reset
+
 questions=[]
+
 document.getElementById("manualQuestions").innerHTML=""
+
 document.getElementById("uploadArea").style.display="none"
 
+
+
 }
+
 console.log("Sending Questions:", questions)
 
+
+
 // ================= QR GENERATION =================
+
 function generateQR(quizId, title, duration){
+
+
 
 let url = window.location.origin + "/join/" + quizId
 
+
+
 // clear previous QR
+
 document.getElementById("qrCanvas").innerHTML = ""
 
+
+
 // 🔥 CREATE PREMIUM QR
+
 const qr = new QRCodeStyling({
 
-    width: 220,
-    height: 220,
-    type: "svg",
-    data: url,
 
-    // 🎯 DOT STYLE
-    dotsOptions: {
-        color: "#111827",
-        type: "rounded"   // 🔥 rounded dots
-    },
 
-    // 🧱 CORNER (EYES)
-    cornersSquareOptions: {
-        type: "extra-rounded",  // 🔥 rounded squares
-        color: "#111827"
-    },
+width: 220,
 
-    cornersDotOptions: {
-        type: "dot",  // 🔥 inner eye dot
-        color: "#111827"
-    },
+height: 220,
 
-    // 🎨 BACKGROUND
-    backgroundOptions: {
-        color: "#ffffff"
-    },
+type: "svg",
 
-    // 🖼 LOGO
-    image: "/static/images/logo.png",
-    imageOptions: {
-        crossOrigin: "anonymous",
-        margin: 6
-    },
+data: url,
 
-    // 🔐 ERROR CORRECTION
-    qrOptions: {
-        errorCorrectionLevel: "H"
-    }
+
+
+// 🎯 DOT STYLE
+
+dotsOptions: {
+
+color: "#111827",
+
+type: "rounded" // 🔥 rounded dots
+
+},
+
+
+
+// 🧱 CORNER (EYES)
+
+cornersSquareOptions: {
+
+type: "extra-rounded", // 🔥 rounded squares
+
+color: "#111827"
+
+},
+
+
+
+cornersDotOptions: {
+
+type: "dot", // 🔥 inner eye dot
+
+color: "#111827"
+
+},
+
+
+
+// 🎨 BACKGROUND
+
+backgroundOptions: {
+
+color: "#ffffff"
+
+},
+
+
+
+// 🖼 LOGO
+
+image: "/static/images/logo.png",
+
+imageOptions: {
+
+crossOrigin: "anonymous",
+
+margin: 6
+
+},
+
+
+
+// 🔐 ERROR CORRECTION
+
+qrOptions: {
+
+errorCorrectionLevel: "H"
+
+}
+
+
 
 })
 
+
+
 // append QR
+
 qr.append(document.getElementById("qrCanvas"))
 
+
+
 // SET DETAILS
+
 document.getElementById("qrId").innerText = quizId
+
 document.getElementById("qrTitle").innerText = title
+
 document.getElementById("qrDetails").innerText = "Duration: " + duration + " mins"
 
+
+
 // SHOW CARD
+
 document.getElementById("qrSection").style.display = "block"
 
+
+
 // store globally for download
+
 window.qrInstance = qr
 
+
+
 }
+
 // ================= RESET =================
+
+
 
 function resetQuiz(){
 
+
+
 questions=[]
 
+
+
 document.getElementById("quizTitle").value=""
+
 document.getElementById("quizStart").value=""
+
 document.getElementById("quizDuration").value=""
 
+
+
 document.getElementById("manualQuestions").innerHTML=""
+
 document.getElementById("uploadArea").style.display="none"
+
+
 
 document.getElementById("qrSection").style.display="none"
 
+
+
 alert("Ready for new quiz")
 
+
+
 }
+
+
+
 
 
 // ================= DOWNLOAD QR =================
+
 function downloadQR(){
+
+
 
 if(window.qrInstance){
 
-    window.qrInstance.download({
-        name: "quiz_qr",
-        extension: "png"
-    })
+
+
+window.qrInstance.download({
+
+name: "quiz_qr",
+
+extension: "png"
+
+})
+
+
 
 }
 
+
+
 }
+
+
 
 // ================= UPLOAD =================
 
+
+
 async function uploadQuestions(){
+
+
 
 let file=document.getElementById("fileUpload").files[0]
 
+
+
 if(!file){
+
 alert("Select file")
+
 return
+
 }
 
+
+
 let formData=new FormData()
+
 formData.append("file",file)
 
+
+
 let res=await fetch("/upload_questions",{
+
 method:"POST",
+
 body:formData
+
 })
+
+
 
 let data=await res.json()
 
+
+
 if(!Array.isArray(data)){
+
 alert("Invalid format")
+
 return
+
 }
 
-questions = data.filter(q => 
-    q.question && 
-    Array.isArray(q.options) && 
-    q.options.length === 4 && 
-    q.answer
+
+
+questions = data.filter(q =>
+
+q.question &&
+
+Array.isArray(q.options) &&
+
+q.options.length === 4 &&
+
+q.answer
+
 )
 
+
+
 if(questions.length === 0){
-    alert("No valid questions found in file")
-    return
+
+alert("No valid questions found in file")
+
+return
+
 }
+
+
 
 alert(questions.length + " Valid Questions Uploaded")
 
+
+
 }
+
+
+
 
 
 // ================= ACTIVITY =================
 
+
+
 async function loadActivity(){
+
+
 
 showPanel("activityPanel")
 
+
+
 let res=await fetch("/get_activity")
+
 let data=await res.json()
 
+
+
 let table=document.querySelector("#activityTable tbody")
+
 table.innerHTML=""
 
+
+
 if(data.length===0){
+
 table.innerHTML=`<tr><td colspan="7">No Activity</td></tr>`
+
 return
+
 }
+
+
 
 data.forEach(x=>{
+
 table.innerHTML+=`
+
 <tr>
+
 <td>${x.name||"-"}</td>
+
 <td>${x.student_id||"-"}</td>
+
 <td>${x.question_answered||"-"}</td>
+
 <td>${x.correct||"-"}</td>
+
 <td>${x.wrong||"-"}</td>
+
 <td>${x.skipped||"-"}</td>
+
 <td>${x.violation_type||"-"}</td>
+
 </tr>`
+
 })
 
+
+
 }
+
+
+
 
 
 // ================= SCORE =================
 
+
+
 async function loadScore(){
+
+
 
 showPanel("scorePanel")
 
+
+
 let res=await fetch("/get_scores")
+
 let data=await res.json()
 
+
+
 let table=document.querySelector("#scoreTable tbody")
+
 table.innerHTML=""
 
+
+
 if(data.length===0){
+
 table.innerHTML=`<tr><td colspan="7">No Scores</td></tr>`
+
 return
+
 }
+
+
 
 data.sort((a,b)=>b.correct-a.correct)
 
+
+
 data.forEach((x,i)=>{
 
+
+
 let badge="Bronze"
+
 if(i===0) badge="🥇"
+
 else if(i===1) badge="🥈"
+
 else if(i===2) badge="🥉"
 
+
+
 table.innerHTML+=`
+
 <tr>
+
 <td>${i+1}</td>
+
 <td>${x.name||"-"}</td>
+
 <td>${x.student_id||"-"}</td>
+
 <td>${x.correct}</td>
+
 <td>${x.wrong}</td>
+
 <td>${x.result}</td>
+
 <td>${badge}</td>
+
 </tr>`
+
 })
+
+
 
 }
