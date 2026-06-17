@@ -4,9 +4,9 @@
 
 window.addEventListener("load", () => {
 
-let qr = document.getElementById("qrSection")
+    let qr = document.getElementById("qrSection")
 
-if(qr) qr.style.display = "none"
+    if(qr) qr.style.display = "none"
 
 })
 
@@ -74,7 +74,7 @@ function showPanel(panel){
 
 ["quizPanel","activityPanel","scorePanel"].forEach(id=>{
 
-document.getElementById(id).style.display="none"
+    document.getElementById(id).style.display="none"
 
 })
 
@@ -154,19 +154,15 @@ document.getElementById("manualQuestions").innerHTML=`
 
 // ================= UPLOAD MODE =================
 
-let currentMode = 'manual';
+
+
+function uploadMode(){
 
 
 
-function manualMode(){
+document.getElementById("manualQuestions").innerHTML=""
 
-currentMode = 'manual';
-
-document.getElementById("uploadArea").style.display="none";
-
-document.getElementById("manualQuestions").style.display="block";
-
-
+document.getElementById("uploadArea").style.display="block"
 
 
 
@@ -178,43 +174,11 @@ if(input){
 
 input.onchange = function(){
 
-let file = this.files[0]
+    let file = this.files[0]
 
-document.getElementById("fileName").innerText =
+    document.getElementById("fileName").innerText =
 
-file ? "Selected: "+file.name : "No file selected"
-
-}
-
-}
-
-
-
-}
-
-
-
-function uploadMode(){
-
-currentMode = 'upload';
-
-document.getElementById("manualQuestions").style.display="none";
-
-document.getElementById("uploadArea").style.display="block";
-
-
-
-let input = document.getElementById("fileUpload");
-
-if(input){
-
-input.onchange = function(){
-
-let file = this.files[0];
-
-document.getElementById("fileName").innerText = file ? "Selected: " + file.name : "No file selected";
-
-}
+        file ? "Selected: "+file.name : "No file selected"
 
 }
 
@@ -222,157 +186,9 @@ document.getElementById("fileName").innerText = file ? "Selected: " + file.name 
 
 
 
-// ================= FIXED UNIFIED CREATE/UPLOAD QUIZ =================
-
-async function createQuiz(){
-
-let title = document.getElementById("quizTitle").value.trim();
-
-let start = document.getElementById("quizStart").value;
-
-let duration = parseInt(document.getElementById("quizDuration").value);
-
-
-
-if(!title || !start || !duration){
-
-alert("Fill all quiz details");
-
-return;
-
 }
 
 
-
-let res;
-
-let data;
-
-
-
-if (currentMode === 'upload') {
-
-// --- FILE UPLOAD MODE (Matches Telegram Workflow) ---
-
-let fileInput = document.getElementById("fileUpload");
-
-let file = fileInput.files[0];
-
-if(!file){
-
-alert("Please select a file to upload first.");
-
-return;
-
-}
-
-
-
-let formData = new FormData();
-
-formData.append("file", file);
-
-formData.append("title", title);
-
-formData.append("duration", duration);
-
-formData.append("start", start);
-
-
-
-// Pointing to your existing backend compilation block
-
-res = await fetch("/upload_quiz_file", {
-
-method: "POST",
-
-body: formData
-
-});
-
-
-
-} else {
-
-// --- MANUAL INJECTION MODE ---
-
-if(questions.length === 0){
-
-alert("Add manual questions first or switch to upload mode.");
-
-return;
-
-}
-
-
-
-let startDate = new Date(start);
-
-let endDate = new Date(startDate.getTime() + duration * 60000);
-
-
-
-res = await fetch("/create_quiz", {
-
-method: "POST",
-
-headers: {"Content-Type": "application/json"},
-
-body: JSON.stringify({
-
-title,
-
-start,
-
-end: endDate.toISOString(),
-
-duration,
-
-questions
-
-})
-
-});
-
-}
-
-
-
-data = await res.json();
-
-
-
-if (res.ok) {
-
-alert(data.msg || "Quiz Processed Successfully!");
-
-// Generate QR Code dynamically on client interface
-
-generateQR(data.quiz_id, title, duration);
-
-
-
-// Clean and Reset state structures
-
-questions = [];
-
-document.getElementById("quizTitle").value = "";
-
-document.getElementById("quizStart").value = "";
-
-document.getElementById("quizDuration").value = "";
-
-document.getElementById("fileUpload").value = "";
-
-document.getElementById("fileName").innerText = "No file selected";
-
-} else {
-
-alert("Error: " + (data.error || "Execution failed."));
-
-}
-
-}
 
 
 
@@ -554,81 +370,81 @@ const qr = new QRCodeStyling({
 
 
 
-width: 220,
+    width: 220,
 
-height: 220,
+    height: 220,
 
-type: "svg",
+    type: "svg",
 
-data: url,
-
-
-
-// 🎯 DOT STYLE
-
-dotsOptions: {
-
-color: "#111827",
-
-type: "rounded" // 🔥 rounded dots
-
-},
+    data: url,
 
 
 
-// 🧱 CORNER (EYES)
+    // 🎯 DOT STYLE
 
-cornersSquareOptions: {
+    dotsOptions: {
 
-type: "extra-rounded", // 🔥 rounded squares
+        color: "#111827",
 
-color: "#111827"
+        type: "rounded"   // 🔥 rounded dots
 
-},
-
-
-
-cornersDotOptions: {
-
-type: "dot", // 🔥 inner eye dot
-
-color: "#111827"
-
-},
+    },
 
 
 
-// 🎨 BACKGROUND
+    // 🧱 CORNER (EYES)
 
-backgroundOptions: {
+    cornersSquareOptions: {
 
-color: "#ffffff"
+        type: "extra-rounded",  // 🔥 rounded squares
 
-},
+        color: "#111827"
 
-
-
-// 🖼 LOGO
-
-image: "/static/images/logo.png",
-
-imageOptions: {
-
-crossOrigin: "anonymous",
-
-margin: 6
-
-},
+    },
 
 
 
-// 🔐 ERROR CORRECTION
+    cornersDotOptions: {
 
-qrOptions: {
+        type: "dot",  // 🔥 inner eye dot
 
-errorCorrectionLevel: "H"
+        color: "#111827"
 
-}
+    },
+
+
+
+    // 🎨 BACKGROUND
+
+    backgroundOptions: {
+
+        color: "#ffffff"
+
+    },
+
+
+
+    // 🖼 LOGO
+
+    image: "/static/images/logo.png",
+
+    imageOptions: {
+
+        crossOrigin: "anonymous",
+
+        margin: 6
+
+    },
+
+
+
+    // 🔐 ERROR CORRECTION
+
+    qrOptions: {
+
+        errorCorrectionLevel: "H"
+
+    }
 
 
 
@@ -716,13 +532,13 @@ if(window.qrInstance){
 
 
 
-window.qrInstance.download({
+    window.qrInstance.download({
 
-name: "quiz_qr",
+        name: "quiz_qr",
 
-extension: "png"
+        extension: "png"
 
-})
+    })
 
 
 
@@ -786,15 +602,15 @@ return
 
 
 
-questions = data.filter(q =>
+questions = data.filter(q => 
 
-q.question &&
+    q.question && 
 
-Array.isArray(q.options) &&
+    Array.isArray(q.options) && 
 
-q.options.length === 4 &&
+    q.options.length === 4 && 
 
-q.answer
+    q.answer
 
 )
 
@@ -802,9 +618,9 @@ q.answer
 
 if(questions.length === 0){
 
-alert("No valid questions found in file")
+    alert("No valid questions found in file")
 
-return
+    return
 
 }
 
@@ -962,4 +778,4 @@ table.innerHTML+=`
 
 
 
-}
+} 
