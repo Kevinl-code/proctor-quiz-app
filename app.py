@@ -582,18 +582,34 @@ def get_scores():
 
 
 def generate_styled_qr_card(quiz_id, title, duration):
-    url = request.host_url + "join/" + quiz_id
-    qr = qrcode.QRCode(version=None, error_correction=ERROR_CORRECT_H, box_size=10, border=2)
+
+    BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:5000")
+    url = f"{BASE_URL}/join/{quiz_id}"
+
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=ERROR_CORRECT_H,
+        box_size=10,
+        border=2
+    )
+
     qr.add_data(url)
     qr.make(fit=True)
 
-    qr_img = qr.make_image(fill_color="#111827", back_color="white").convert("RGBA").resize((200, 200))
+    qr_img = qr.make_image(
+        fill_color="#111827",
+        back_color="white"
+    ).convert("RGBA").resize((200, 200))
 
     try:
         logo = Image.open("static/images/logo.png").convert("RGBA")
         logo_size = 50
         logo = logo.resize((logo_size, logo_size))
-        pos = (qr_img.size[0]//2 - logo_size//2, qr_img.size[1]//2 - logo_size//2)
+
+        pos = (
+            qr_img.size[0]//2 - logo_size//2,
+            qr_img.size[1]//2 - logo_size//2
+        )
 
         circle = Image.new("RGBA", (logo_size+10, logo_size+10), (255,255,255,255))
         mask = Image.new("L", circle.size, 0)
@@ -602,6 +618,7 @@ def generate_styled_qr_card(quiz_id, title, duration):
 
         qr_img.paste(circle, (pos[0]-5, pos[1]-5), mask)
         qr_img.paste(logo, pos, logo)
+
     except:
         pass
 
@@ -618,9 +635,9 @@ def generate_styled_qr_card(quiz_id, title, duration):
     mdraw = ImageDraw.Draw(mask)
     mdraw.rounded_rectangle((0,0,300,380), radius=25, fill=255)
     card.putalpha(mask)
+
     card.paste(qr_img, (50, 100), qr_img)
 
-    draw = ImageDraw.Draw(card)
     try:
         from PIL import ImageFont
         font_title = ImageFont.truetype("arial.ttf", 18)
@@ -628,6 +645,8 @@ def generate_styled_qr_card(quiz_id, title, duration):
     except:
         font_title = None
         font_small = None
+
+    draw = ImageDraw.Draw(card)
 
     draw.text((90, 20), "Quiz ID: " + quiz_id, fill="white", font=font_small)
     draw.text((70, 45), title[:20], fill="white", font=font_title)
@@ -637,8 +656,9 @@ def generate_styled_qr_card(quiz_id, title, duration):
     img_io = BytesIO()
     card.save(img_io, format="PNG")
     img_io.seek(0)
-    return img_io
 
+    return img_io
+    
 # ================= TELEGRAM KEYBOARDS =================
 
 def main_menu_kb():
