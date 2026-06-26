@@ -931,16 +931,17 @@ def telegram_webhook():
         step = user.get("step")
         data = user.get("data", {})
 
-        # -------- /start --------
+        # -------- TEXT HANDLING --------
         if "text" in msg:
             text = msg["text"].strip()
 
+            # /start
             if text.lower() == "/start":
                 telegram_sessions.delete_one({"chat_id": chat_id})
                 send_message(chat_id, "🤖 Welcome to Quiz Bot", main_menu_kb())
                 return "ok"
 
-            # -------- /help --------
+            # /help
             if text.lower() == "/help":
                 send_message(chat_id, HELP_TEXT, main_menu_kb())
                 return "ok"
@@ -963,7 +964,7 @@ def telegram_webhook():
             # ================= DURATION =================
             if step == "duration":
                 if not text.isdigit() or int(text) <= 0:
-                    send_message(chat_id, "⚠️ Enter valid duration in minutes:")
+                    send_message(chat_id, "⚠️ Enter valid duration (minutes):")
                     return "ok"
 
                 telegram_sessions.update_one(
@@ -989,7 +990,7 @@ def telegram_webhook():
                     confirm_start(chat_id)
 
                 except:
-                    send_message(chat_id, "⚠️ Invalid format!\nUse: YYYY-MM-DD HH:MM")
+                    send_message(chat_id, "⚠️ Format: YYYY-MM-DD HH:MM")
 
                 return "ok"
 
@@ -1006,7 +1007,7 @@ def telegram_webhook():
                 ).json()
 
                 if not res.get("ok"):
-                    send_message(chat_id, "❌ Failed to fetch file")
+                    send_message(chat_id, "❌ File fetch failed")
                     return "ok"
 
                 path = res["result"]["file_path"]
@@ -1018,7 +1019,7 @@ def telegram_webhook():
                 parsed = extract_questions_from_file(memory_file, file_name)
 
                 if not parsed:
-                    send_message(chat_id, "⚠️ No valid questions found. Check format.")
+                    send_message(chat_id, "⚠️ No valid questions found.")
                     return "ok"
 
                 telegram_sessions.update_one(
@@ -1035,124 +1036,130 @@ def telegram_webhook():
             return "ok"
 
     # ================= CALLBACK HANDLER =================
-        if "callback_query" in update:
-            cb = update["callback_query"]
-            chat_id = cb["message"]["chat"]["id"]
-            action = cb["data"]
-        
-            step = get_user(chat_id).get("step")
-            user = get_user(chat_id)
-            data = user.get("data", {})
-        
-            requests.post(
-                f"{TELEGRAM_API}/answerCallbackQuery",
-                json={"callback_query_id": cb["id"]}
+    if "callback_query" in update:
+
+        cb = update["callback_query"]
+        chat_id = cb["message"]["chat"]["id"]
+        action = cb["data"]
+
+        requests.post(
+            f"{TELEGRAM_API}/answerCallbackQuery",
+            json={"callback_query_id": cb["id"]}
+        )
+
+        user = get_user(chat_id)
+        step = user.get("step")
+        data = user.get("data", {})
+
+        # -------- CREATE --------
+        if action == "create":
+            telegram_sessions.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"step": "title", "data": {}}},
+                upsert=True
             )
-        
-            # -------- CREATE --------
-            if action == "create":
-                telegram_sessions.update_one(
-                    {"chat_id": chat_id},
-                    {"$set": {"step": "title", "data": {}}},
-                    upsert=True
-                )
-                send_message(chat_id, "📝 Enter Quiz Title:")
-                return "ok"
-        
-            # -------- CONFIRM --------
-            if action == "confirm":
-        
-                if step == "confirm_title":
-                    next_step(chat_id)
-        
-                elif step == "confirm_duration":
-                    next_step(chat_id)
-        
-                elif step == "confirm_start":
-                    next_step(chat_id)
-        
-                elif step == "confirm_questions":
-                    next_step(chat_id)
-        
-                elif step == "summary":
-                    send_message(chat_id, "⚠️ Use Create Quiz button")
-        
-                return "ok"
-        
-            # -------- FINAL SUBMIT (SEPARATE BLOCK) --------
-            if action == "final_submit":
-        
-                missing = []
-        
-                if not data.get("title"):
-                    missing.append("Title")
-                if not data.get("duration"):
-                    missing.append("Duration")
-                if not data.get("start"):
-                    missing.append("Start Time")
-                if not data.get("questions"):
-                    missing.append("Questions")
-        
-                if missing:
-                    send_message(chat_id, "⚠️ Missing:\n" + "\n".join(missing))
-                    return "ok"
-        
-                try:
-                    quiz_id = create_quiz_from_session(chat_id, data)
-        
-                    send_final_quiz(
-                        chat_id,
-                        quiz_id,
-                        data["title"],
-                        data["duration"]
-                    )
-        
-                except Exception as e:
-                    send_message(chat_id, f"❌ Error: {str(e)}")
-        
-                return "ok"
-        
-            # -------- EDIT --------
-            if action == "edit_current":
-                mapping = {
-                    "confirm_title": "title",
-                    "confirm_duration": "duration",
-                    "confirm_start": "start",
-                    "confirm_questions": "questions"
-                }
-        
-                target = mapping.get(step)
-        
-                if target:
-                    edit_field(chat_id, target)
-        
-                return "ok"
-        
-            if action == "edit_title":
-                edit_field(chat_id, "title")
-                return "ok"
-        
-            if action == "edit_duration":
-                edit_field(chat_id, "duration")
-                return "ok"
-        
-            if action == "edit_start":
-                edit_field(chat_id, "start")
-                return "ok"
-        
-            if action == "edit_questions":
-                edit_field(chat_id, "questions")
-                return "ok"
-        
-            if action == "cancel":
-                telegram_sessions.delete_one({"chat_id": chat_id})
-                send_message(chat_id, "❌ Cancelled", main_menu_kb())
-                return "ok"
-        
-            if action == "help":
-                send_message(chat_id, HELP_TEXT, main_menu_kb())
+            send_message(chat_id, "📝 Enter Quiz Title:")
+            return "ok"
+
+        # -------- CONFIRM FLOW --------
+        if action == "confirm":
+
+            if step == "confirm_title":
+                next_step(chat_id)
+
+            elif step == "confirm_duration":
+                next_step(chat_id)
+
+            elif step == "confirm_start":
+                next_step(chat_id)
+
+            elif step == "confirm_questions":
+                next_step(chat_id)
+
+            elif step == "summary":
+                send_message(chat_id, "⚠️ Use 'Create Quiz' button")
+
+            return "ok"
+
+        # -------- FINAL SUBMIT --------
+        if action == "final_submit":
+
+            missing = []
+
+            if not data.get("title"):
+                missing.append("Title")
+            if not data.get("duration"):
+                missing.append("Duration")
+            if not data.get("start"):
+                missing.append("Start Time")
+            if not data.get("questions"):
+                missing.append("Questions")
+
+            if missing:
+                send_message(chat_id, "⚠️ Missing:\n" + "\n".join(missing))
                 return "ok"
 
+            try:
+                quiz_id = create_quiz_from_session(chat_id, data)
+
+                send_final_quiz(
+                    chat_id,
+                    quiz_id,
+                    data["title"],
+                    data["duration"]
+                )
+
+            except Exception as e:
+                send_message(chat_id, f"❌ Error: {str(e)}")
+
+            return "ok"
+
+        # -------- EDIT CURRENT --------
+        if action == "edit_current":
+
+            mapping = {
+                "confirm_title": "title",
+                "confirm_duration": "duration",
+                "confirm_start": "start",
+                "confirm_questions": "questions"
+            }
+
+            target = mapping.get(step)
+
+            if target:
+                edit_field(chat_id, target)
+
+            return "ok"
+
+        # -------- SPECIFIC EDIT --------
+        if action == "edit_title":
+            edit_field(chat_id, "title")
+            return "ok"
+
+        if action == "edit_duration":
+            edit_field(chat_id, "duration")
+            return "ok"
+
+        if action == "edit_start":
+            edit_field(chat_id, "start")
+            return "ok"
+
+        if action == "edit_questions":
+            edit_field(chat_id, "questions")
+            return "ok"
+
+        # -------- CANCEL --------
+        if action == "cancel":
+            telegram_sessions.delete_one({"chat_id": chat_id})
+            send_message(chat_id, "❌ Cancelled", main_menu_kb())
+            return "ok"
+
+        # -------- HELP --------
+        if action == "help":
+            send_message(chat_id, HELP_TEXT, main_menu_kb())
+            return "ok"
+
+    return "ok"
 def create_quiz_from_session(chat_id, data):
 
     quiz_id = str(uuid.uuid4())[:8]
