@@ -1342,11 +1342,11 @@ def notify_admin_disqualification(student_id, name, quiz_id, violations):
     except Exception as e:
         print(f"❌ [EMAIL DEBUG] SMTP Connection failed to complete: {str(e)}")
 
-    email_thread = threading.Thread(
-            target=notify_admin_disqualification, 
-            args=(student_id, name, quiz_id, violations)
-        )
-        email_thread.start()
+        email_thread = threading.Thread(
+                target=notify_admin_disqualification, 
+                args=(student_id, name, quiz_id, violations)
+            )
+            email_thread.start()
 
 
 @app.route("/log_violation", methods=["POST"])
