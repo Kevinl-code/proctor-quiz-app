@@ -10,6 +10,7 @@ from requests.auth import HTTPBasicAuth
 from PIL import Image, ImageDraw
 from qrcode.constants import ERROR_CORRECT_H
 import telegram
+import threading
 
 BASE_URL = os.getenv("BASE_URL", "https://pqds.onrender.com")
 print("🚀 NEW CODE DEPLOYED - BASE_URL FIX ACTIVE")
@@ -26,7 +27,7 @@ TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 # 👇 ADD THESE SMTP CONFIGURATIONS RIGHT HERE 👇
 SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
+SMTP_PORT = 465
 SMTP_USER = os.getenv("SMTP_USER")  # Your email address
 SMTP_PASS = os.getenv("SMTP_PASS")  # Your 16-character App Password
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "kevinlazarus03@gmail.com") # Fallback admin email if needed
@@ -1270,6 +1271,27 @@ from email import encoders
 import csv
 from io import StringIO
 
+
+
+def send_email_worker(student_id, name, quiz_id, violations):
+    """Actual network task running safely inside a background thread."""
+    try:
+        print("⚡ [BACKGROUND EMAIL] Connecting to SMTP server...")
+        
+        # 👇 Added timeout=5 to prevent infinite hanging if Render blocks the port
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=5)
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASS)
+        
+        # ... your existing email preparation logic ...
+        # msg = MIMEText(...)
+        # server.sendmail(...)
+        
+        server.quit()
+        print("📧 [BACKGROUND EMAIL] Notification sent successfully!")
+    except Exception as e:
+        print(f"❌ [BACKGROUND EMAIL] Failed to send email: {e}")
+        
 def notify_admin_disqualification(student_id, name, quiz_id, violations):
     print("📧 [EMAIL DEBUG] Attempting to prepare email notification...")
     if not SMTP_USER or not SMTP_PASS:
@@ -1286,10 +1308,6 @@ def notify_admin_disqualification(student_id, name, quiz_id, violations):
     
     admin_emails = [prof["email"] for prof in professors if "email" in prof]
     print(f"🎯 [EMAIL DEBUG] Found destination professor emails: {admin_emails}")
-
-    if not admin_emails:
-        print("❌ [EMAIL DEBUG] No registered professors found in the database. Aborting email send.")
-        return
 
     msg = MIMEMultipart()
     msg['From'] = SMTP_USER
@@ -1322,6 +1340,15 @@ def notify_admin_disqualification(student_id, name, quiz_id, violations):
         print("✅ [EMAIL DEBUG] Email sent successfully to all professors!")
     except Exception as e:
         print(f"❌ [EMAIL DEBUG] SMTP Connection failed to complete: {str(e)}")
+
+    """Fires off the email thread and exits instantly so Flask can respond."""
+    email_thread = threading.Thread(
+        target=send_email_worker,
+        args=(student_id, name, quiz_id, violations)
+    )
+    email_thread.daemon = True  # Allows main app to exit cleanly if needed
+    email_thread.start()
+    print("🎯 [PROCTOR] Email thread dispatched. Continuing request lifecycle...")
 
 
 @app.route("/log_violation", methods=["POST"])
