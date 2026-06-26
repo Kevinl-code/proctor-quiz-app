@@ -928,8 +928,7 @@ Commands
 
 @app.route("/telegram", methods=["POST"])
 def telegram_webhook():
-    print("BASE_URL =", os.getenv("BASE_URL"))
-
+    
     update = request.json or {}
 
     # ================= MESSAGE HANDLER =================
@@ -1182,8 +1181,7 @@ def generate_qr(quiz_id):
     img = generate_styled_qr_card(
     quiz_id,
     q["title"],
-    q["duration"],
-    BASE_URL
+    q["duration"]
 )
     return send_file(img, mimetype="image/png")
     
@@ -1226,8 +1224,7 @@ def send_final_quiz(chat_id, quiz_id, title, duration):
     img = generate_styled_qr_card(
     quiz_id,
     title,
-    duration,
-    BASE_URL
+    duration
 )
 
     send_message(
