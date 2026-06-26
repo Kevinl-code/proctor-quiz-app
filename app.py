@@ -1263,42 +1263,45 @@ def send_final_quiz(chat_id, quiz_id, title, duration):
     telegram_sessions.delete_one({"chat_id": chat_id})
 
 # Ensure these imports are active at the top of app.py
+import csv
+from io import StringIO
+from datetime import datetime
+import threading
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
-import csv
-from io import StringIO
+from flask import jsonify, request, session
 
+def send_email_worker(msg, admin_emails):
+    """Actual network task running safely inside an isolated background thread."""
+    if not admin_emails:
+        print("⚠️ [BACKGROUND EMAIL] No destination emails found. Canceling dispatch.")
+        return
 
-
-def send_email_worker(student_id, name, quiz_id, violations):
-    """Actual network task running safely inside a background thread."""
     try:
         print("⚡ [BACKGROUND EMAIL] Connecting to SMTP server...")
-        
-        # 👇 Added timeout=5 to prevent infinite hanging if Render blocks the port
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=5)
+        # Added a 10-second timeout to protect worker health
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10)
         server.starttls()
         server.login(SMTP_USER, SMTP_PASS)
         
-        # ... your existing email preparation logic ...
-        # msg = MIMEText(...)
-        # server.sendmail(...)
-        
+        print(f"📧 [BACKGROUND EMAIL] Dispatching alert to: {admin_emails}")
+        server.sendmail(SMTP_USER, admin_emails, msg.as_string())
         server.quit()
-        print("📧 [BACKGROUND EMAIL] Notification sent successfully!")
+        print("✅ [BACKGROUND EMAIL] Notification sent successfully to all professors!")
     except Exception as e:
-        print(f"❌ [BACKGROUND EMAIL] Failed to send email: {e}")
-        
+        print(f"❌ [BACKGROUND EMAIL] SMTP Connection failed to complete: {str(e)}")
+
 def notify_admin_disqualification(student_id, name, quiz_id, violations):
+    """Prepares email payloads and passes off blocking I/O tasks to a background worker."""
     print("📧 [EMAIL DEBUG] Attempting to prepare email notification...")
     if not SMTP_USER or not SMTP_PASS:
         print("❌ [EMAIL DEBUG] SMTP_USER or SMTP_PASS environment variables are completely missing!")
         return
 
-    # Broad search matching both explicit professor roles and matching emails
+    # Broad search matching both explicit professor roles and matching domains
     professors = list(users_collection.find({
         "$or": [
             {"role": "professor"},
@@ -1309,12 +1312,20 @@ def notify_admin_disqualification(student_id, name, quiz_id, violations):
     admin_emails = [prof["email"] for prof in professors if "email" in prof]
     print(f"🎯 [EMAIL DEBUG] Found destination professor emails: {admin_emails}")
 
+    if not admin_emails:
+        print("⚠️ [EMAIL DEBUG] Notification skipped. No admin emails matched criteria.")
+        return
+
+    # Setup core email structures
     msg = MIMEMultipart()
     msg['From'] = SMTP_USER
     msg['To'] = ", ".join(admin_emails) 
     msg['Subject'] = f"🚨 Disqualification Alert: {name} ({student_id})"
 
-    body = f"Student {name} ({student_id}) has been automatically disqualified from quiz {quiz_id} because their violation count went above 2.\n\nSee attached CSV log for historical trace."
+    body = (
+        f"Student {name} ({student_id}) has been automatically disqualified from quiz {quiz_id} "
+        f"because their violation count went above 2.\n\nSee attached CSV log for historical trace."
+    )
     msg.attach(MIMEText(body, 'plain'))
 
     # Generate the log file dynamically
@@ -1330,23 +1341,12 @@ def notify_admin_disqualification(student_id, name, quiz_id, violations):
     part.add_header('Content-Disposition', f'attachment; filename="violation_log_{student_id}.csv"')
     msg.attach(part)
 
-    try:
-        print(f"⚡ [EMAIL DEBUG] Connecting to SMTP server {SMTP_SERVER}:{SMTP_PORT}...")
-        # Add a 10-second timeout to prevent Gunicorn from freezing
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10) 
-        server.starttls()
-        server.login(SMTP_USER, SMTP_PASS)
-        server.sendmail(SMTP_USER, admin_emails, msg.as_string())
-        server.quit()
-        print("✅ [EMAIL DEBUG] Email sent successfully to all professors!")
-    except Exception as e:
-        print(f"❌ [EMAIL DEBUG] SMTP Connection failed to complete: {str(e)}")
-
-        email_thread = threading.Thread(
-                target=notify_admin_disqualification, 
-                args=(student_id, name, quiz_id, violations)
-            )
-            email_thread.start()
+    # Fire and forget: Hand the payload to the asynchronous background worker
+    email_thread = threading.Thread(
+        target=send_email_worker,
+        args=(msg, admin_emails)
+    )
+    email_thread.start()
 
 
 @app.route("/log_violation", methods=["POST"])
@@ -1390,8 +1390,6 @@ def log_violation():
     
     print(f"📈 [PROCTOR] Total logged violations for this attempt: {violation_count}")
 
-    # DISQUALIFICATION TRIGGER: 
-    # If the rule says count cannot be ABOVE 2, then count = 3 triggers DQ.
     disqualified = False
     if violation_count > 2 or severity == "severe":
         disqualified = True
@@ -1411,7 +1409,7 @@ def log_violation():
             upsert=True
         )
         
-        # Fire off email alerts
+        # This will assemble data instantly and trigger the thread background task
         notify_admin_disqualification(student_id, name, quiz_id, violations)
         
     return jsonify({
