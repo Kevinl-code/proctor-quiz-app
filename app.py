@@ -585,6 +585,9 @@ def get_scores():
 
 
 def generate_styled_qr_card(quiz_id, title, duration):
+    BASE_URL = os.getenv("BASE_URL", "https://pqds.onrender.com")
+    join_url = f"{BASE_URL}/join/{quiz_id}"
+
 
     qr = qrcode.QRCode(
         version=None,
@@ -1173,6 +1176,9 @@ def telegram_webhook():
 
 @app.route("/generate_qr/<quiz_id>")
 def generate_qr(quiz_id):
+    BASE_URL = os.getenv("BASE_URL", "https://pqds.onrender.com")
+    join_url = f"{BASE_URL}/join/{quiz_id}"
+
 
     q = quiz.find_one({"quiz_id": quiz_id}, {"_id": 0})
     if not q:
