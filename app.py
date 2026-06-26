@@ -1307,7 +1307,7 @@ def notify_admin_disqualification(student_id, name, quiz_id, violations):
     from email.mime.text import MIMEText  # <--- THIS WAS THE MISSING IMPORT CAUSING THE CRASH
 
     try:
-        sender_email = os.getenv("SENDER_EMAIL", "your-system-email@gmail.com")
+        sender_email = os.getenv("SENDER_EMAIL", "analytixfest2k2x@gmail.com")
         sender_password = os.getenv("SENDER_PASSWORD")
         professor_emails = ["kevinlazarus03@gmail.com"]  # Primary recipient list
 
