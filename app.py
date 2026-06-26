@@ -585,6 +585,11 @@ def get_scores():
 
 
 def generate_styled_qr_card(quiz_id, title, duration):
+    
+    print("🔥 QR FUNCTION CALLED")
+    print("🔥 URL =", url)
+    import time
+    url = f"{BASE_URL}/join/{quiz_id}?t={time.time()}"
 
     import os
 
