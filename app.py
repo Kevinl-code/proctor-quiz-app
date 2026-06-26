@@ -1332,7 +1332,8 @@ def notify_admin_disqualification(student_id, name, quiz_id, violations):
 
     try:
         print(f"⚡ [EMAIL DEBUG] Connecting to SMTP server {SMTP_SERVER}:{SMTP_PORT}...")
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        # Add a 10-second timeout to prevent Gunicorn from freezing
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10) 
         server.starttls()
         server.login(SMTP_USER, SMTP_PASS)
         server.sendmail(SMTP_USER, admin_emails, msg.as_string())
@@ -1341,14 +1342,11 @@ def notify_admin_disqualification(student_id, name, quiz_id, violations):
     except Exception as e:
         print(f"❌ [EMAIL DEBUG] SMTP Connection failed to complete: {str(e)}")
 
-    """Fires off the email thread and exits instantly so Flask can respond."""
     email_thread = threading.Thread(
-        target=send_email_worker,
-        args=(student_id, name, quiz_id, violations)
-    )
-    email_thread.daemon = True  # Allows main app to exit cleanly if needed
-    email_thread.start()
-    print("🎯 [PROCTOR] Email thread dispatched. Continuing request lifecycle...")
+            target=notify_admin_disqualification, 
+            args=(student_id, name, quiz_id, violations)
+        )
+        email_thread.start()
 
 
 @app.route("/log_violation", methods=["POST"])
