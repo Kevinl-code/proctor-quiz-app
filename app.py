@@ -10,13 +10,6 @@ from requests.auth import HTTPBasicAuth
 from PIL import Image, ImageDraw
 from qrcode.constants import ERROR_CORRECT_H
 import telegram
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
-import csv
-from io import StringIO
 
 BASE_URL = os.getenv("BASE_URL", "https://pqds.onrender.com")
 print("🚀 NEW CODE DEPLOYED - BASE_URL FIX ACTIVE")
@@ -1261,19 +1254,82 @@ def send_final_quiz(chat_id, quiz_id, title, duration):
 
     telegram_sessions.delete_one({"chat_id": chat_id})
 
+# Ensure these imports are active at the top of app.py
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+import csv
+from io import StringIO
+
+def notify_admin_disqualification(student_id, name, quiz_id, violations):
+    print("📧 [EMAIL DEBUG] Attempting to prepare email notification...")
+    if not SMTP_USER or not SMTP_PASS:
+        print("❌ [EMAIL DEBUG] SMTP_USER or SMTP_PASS environment variables are completely missing!")
+        return
+
+    # Broad search matching both explicit professor roles and matching emails
+    professors = list(users_collection.find({
+        "$or": [
+            {"role": "professor"},
+            {"email": {"$regex": "@bhc\\.professor\\.com$", "$options": "i"}}
+        ]
+    }))
+    
+    admin_emails = [prof["email"] for prof in professors if "email" in prof]
+    print(f"🎯 [EMAIL DEBUG] Found destination professor emails: {admin_emails}")
+
+    if not admin_emails:
+        print("❌ [EMAIL DEBUG] No registered professors found in the database. Aborting email send.")
+        return
+
+    msg = MIMEMultipart()
+    msg['From'] = SMTP_USER
+    msg['To'] = ", ".join(admin_emails) 
+    msg['Subject'] = f"🚨 Disqualification Alert: {name} ({student_id})"
+
+    body = f"Student {name} ({student_id}) has been automatically disqualified from quiz {quiz_id} because their violation count went above 2.\n\nSee attached CSV log for historical trace."
+    msg.attach(MIMEText(body, 'plain'))
+
+    # Generate the log file dynamically
+    csv_file = StringIO()
+    writer = csv.writer(csv_file)
+    writer.writerow(['Timestamp', 'Violation Type', 'Severity'])
+    for v in violations:
+        writer.writerow([v.get('timestamp', datetime.now()), v.get('type'), v.get('severity')])
+    
+    part = MIMEBase('application', 'octet-stream')
+    part.set_payload(csv_file.getvalue().encode('utf-8'))
+    encoders.encode_base64(part)
+    part.add_header('Content-Disposition', f'attachment; filename="violation_log_{student_id}.csv"')
+    msg.attach(part)
+
+    try:
+        print(f"⚡ [EMAIL DEBUG] Connecting to SMTP server {SMTP_SERVER}:{SMTP_PORT}...")
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASS)
+        server.sendmail(SMTP_USER, admin_emails, msg.as_string())
+        server.quit()
+        print("✅ [EMAIL DEBUG] Email sent successfully to all professors!")
+    except Exception as e:
+        print(f"❌ [EMAIL DEBUG] SMTP Connection failed to complete: {str(e)}")
+
 
 @app.route("/log_violation", methods=["POST"])
 def log_violation():
     if "user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
-    data = request.json
+    data = request.json or {}
     student_id = session["user"]
     name = session["name"]
     quiz_id = data.get("quiz_id")
-    v_type = data.get("violation_type") # e.g., 'tab_switch', 'minimize', 'screenshot'
+    v_type = data.get("violation_type")
     
-    # Define severity mapping
+    print(f"📊 [PROCTOR] Received tracking signal - Student: {name}, Quiz: {quiz_id}, Type: {v_type}")
+
     severity_map = {
         "screenshot": "severe",
         "record": "severe",
@@ -1281,114 +1337,57 @@ def log_violation():
         "minimize": "moderate",
         "tab_switch": "mild"
     }
-    
     severity = severity_map.get(v_type, "mild")
     
-    # Track the violation in the database
     violation_record = {
         "type": v_type,
         "severity": severity,
         "timestamp": datetime.now()
     }
     
-    # Upsert an active proctor session for the student
+    # Store violation to tracking session
     db.proctor_sessions.update_one(
         {"quiz_id": quiz_id, "student_id": student_id},
         {"$push": {"violations": violation_record}},
         upsert=True
     )
     
-    # Fetch current session to check rules
     current_session = db.proctor_sessions.find_one({"quiz_id": quiz_id, "student_id": student_id})
     violations = current_session.get("violations", [])
-    
     violation_count = len(violations)
     
-    # DISQUALIFICATION RULES:
-    # 1. More than 2 violations of any kind
-    # 2. OR 1 "severe" violation (like taking a screenshot)
+    print(f"📈 [PROCTOR] Total logged violations for this attempt: {violation_count}")
+
+    # DISQUALIFICATION TRIGGER: 
+    # If the rule says count cannot be ABOVE 2, then count = 3 triggers DQ.
     disqualified = False
     if violation_count > 2 or severity == "severe":
         disqualified = True
+        print(f"🚨 [PROCTOR] Disqualification threshold breached for user {name}!")
         
-        # Mark as disqualified in database
-        submissions.insert_one({
-            "quiz_id": quiz_id,
-            "student_id": student_id,
-            "name": name,
-            "status": "DISQUALIFIED",
-            "violation_count": violation_count
-        })
+        # Log to structural submission tables
+        submissions.update_one(
+            {"quiz_id": quiz_id, "student_id": student_id},
+            {"$set": {
+                "quiz_id": quiz_id,
+                "student_id": student_id,
+                "name": name,
+                "status": "DISQUALIFIED",
+                "violation_count": violation_count,
+                "timestamp": datetime.now()
+            }},
+            upsert=True
+        )
         
-        # Trigger Admin Email
+        # Fire off email alerts
         notify_admin_disqualification(student_id, name, quiz_id, violations)
         
     return jsonify({
         "status": "logged", 
         "disqualified": disqualified,
         "violation_count": violation_count,
-        "message": f"Warning! You have {violation_count}/2 allowed violations." if not disqualified else "You have been disqualified."
+        "message": f"{violation_count}/2 violations committed. Next one will disqualify you." if not disqualified else "Disqualified."
     })
-   notify_admin_disqualification(student_id, name, quiz_id, violations)
-
-def notify_admin_disqualification(student_id, name, quiz_id, violations):
-    if not SMTP_USER or not SMTP_PASS:
-        print("SMTP credentials missing. Cannot send email.")
-        return
-
-    # 1. Dynamically fetch all professor emails from your users_collection
-    # This captures both Google logins (@gmail.com) and manual signups
-    professors = users_collection.find({
-        "$or": [
-            {"role": "professor"},
-            {"email": {"$regex": "^[a-z0-9]+@bhc\.professor\.com$"}}
-        ]
-    })
-    
-    admin_emails = [prof["email"] for prof in professors if "email" in prof]
-
-    if not admin_emails:
-        print("No professor emails found in the database. Email aborted.")
-        return
-
-    msg = MIMEMultipart()
-    msg['From'] = SMTP_USER
-    
-    # 2. Join all professor emails so they all receive the notification
-    msg['To'] = ", ".join(admin_emails) 
-    msg['Subject'] = f"🚨 Disqualification Alert: {name} ({student_id})"
-
-    body = f"Student {name} ({student_id}) has been automatically disqualified from quiz {quiz_id} due to excessive or severe violations.\n\nSee attached log for details."
-    msg.attach(MIMEText(body, 'plain'))
-
-    # 3. Create the violation CSV log in memory
-    csv_file = StringIO()
-    writer = csv.writer(csv_file)
-    writer.writerow(['Timestamp', 'Violation Type', 'Severity'])
-    for v in violations:
-        writer.writerow([v.get('timestamp', datetime.now()), v.get('type'), v.get('severity')])
-    
-    # 4. Attach the CSV
-    part = MIMEBase('application', 'octet-stream')
-    part.set_payload(csv_file.getvalue().encode('utf-8'))
-    encoders.encode_base64(part)
-    part.add_header('Content-Disposition', f'attachment; filename="violation_log_{student_id}.csv"')
-    msg.attach(part)
-
-    # 5. Send the email to the list of professors
-    try:
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()
-        server.login(SMTP_USER, SMTP_PASS)
-        text = msg.as_string()
-        
-        # server.sendmail takes a list of recipients for the 'to_addrs' parameter
-        server.sendmail(SMTP_USER, admin_emails, text) 
-        server.quit()
-        print(f"Disqualification email sent successfully to {len(admin_emails)} professors.")
-    except Exception as e:
-        print(f"Failed to send email: {e}")
-
 
 @app.route("/privacy")
 def privacy():
