@@ -584,23 +584,7 @@ def get_scores():
     return jsonify(data)
 
 
-def generate_styled_qr_card(quiz_id, title, duration, base_url):
-    url = f"{base_url}/join/{quiz_id}"
-    
-    print("🔥 QR FUNCTION CALLED")
-    print("🔥 URL =", url)
-    import time
-    url = f"{BASE_URL}/join/{quiz_id}?t={time.time()}"
-
-    import os
-
-    BASE_URL = os.environ.get("BASE_URL")
-    
-    if not BASE_URL:
-        BASE_URL = "https://pqds.onrender.com"
-    url = f"{BASE_URL}/join/{quiz_id}"
-
-    
+def generate_styled_qr_card(quiz_id, title, duration):
 
     qr = qrcode.QRCode(
         version=None,
