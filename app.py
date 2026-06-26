@@ -459,14 +459,19 @@ def parse_block_questions(lines):
 # ================= QR & ATTEMPTS =================
 @app.route("/generate_qr/<quiz_id>")
 def generate_qr(quiz_id):
-    url = request.host_url + "join/" + quiz_id
-    qr = qrcode.make(url)
 
-    img_io = io.BytesIO()
-    qr.save(img_io, 'PNG')
-    img_io.seek(0)
-    return send_file(img_io, mimetype='image/png')
+    q = quiz.find_one({"quiz_id": quiz_id}, {"_id": 0})
+    if not q:
+        return "Quiz not found"
 
+    img = generate_styled_qr_card(
+        quiz_id,
+        q["title"],
+        q["duration"]
+    )
+
+    return send_file(img, mimetype="image/png")
+    
 @app.route("/quiz_info/<quiz_id>")
 def quiz_info(quiz_id):
     if "user" not in session:
