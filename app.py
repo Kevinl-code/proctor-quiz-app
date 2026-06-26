@@ -27,7 +27,7 @@ TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 # 👇 ADD THESE SMTP CONFIGURATIONS RIGHT HERE 👇
 SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 465
+SMTP_PORT = 587
 SMTP_USER = os.getenv("SMTP_USER")  # Your email address
 SMTP_PASS = os.getenv("SMTP_PASS")  # Your 16-character App Password
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "kevinlazarus03@gmail.com") # Fallback admin email if needed
