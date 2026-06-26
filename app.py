@@ -1239,7 +1239,7 @@ def send_final_quiz(chat_id, quiz_id, title, duration):
                 {"text": "🚀 Join Quiz", "url": join_url}
             ],
             [
-                {"text": "📊 Open Dashboard", "url": f"{BASE_URL}/dashboard"}
+                {"text": "📊 Open Dashboard", "url": f"{BASE_URL}"}
             ]
         ]
     }
