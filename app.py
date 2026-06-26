@@ -1,4 +1,3 @@
-BASE_URL = os.getenv("BASE_URL", "https://pqds.onrender.com")
 from flask import Flask, render_template, request, redirect, flash, jsonify, session, send_file, send_from_directory, url_for
 from pymongo import MongoClient
 from authlib.integrations.flask_client import OAuth
@@ -11,6 +10,8 @@ from requests.auth import HTTPBasicAuth
 from PIL import Image, ImageDraw
 from qrcode.constants import ERROR_CORRECT_H
 import telegram
+
+BASE_URL = os.getenv("BASE_URL", "https://pqds.onrender.com")
 
 load_dotenv()
 
