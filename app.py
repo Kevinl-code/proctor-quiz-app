@@ -1271,6 +1271,8 @@ import threading
 import requests
 from flask import jsonify, request, session
 
+
+
 def send_email_worker_api(payload, headers):
     """Executes an outbound HTTP POST request safely in the background."""
     try:
@@ -1291,83 +1293,71 @@ def send_email_worker_api(payload, headers):
         print(f"❌ [BACKGROUND EMAIL] HTTP API Request failed: {str(e)}")
 
 def notify_admin_disqualification(student_id, name, quiz_id, violations):
-    """Prepares JSON payload and passes off outbound HTTP request to background thread."""
-    print("📧 [EMAIL DEBUG] Attempting to prepare email notification payload...")
-    
-    API_KEY = os.getenv("EMAIL_API_KEY")
-    SENDER_EMAIL = os.getenv("SMTP_USER") # Keep your existing env variable name or use a new one
-    
-    if not API_KEY or not SENDER_EMAIL:
-        print("❌ [EMAIL DEBUG] EMAIL_API_KEY or SENDER_EMAIL variables are missing!")
-        return
+    """
+    Assembles and transmits a structured alert detailing the exact tracking infractions
+    that led to the student's disqualification.
+    """
+    try:
+        sender_email = os.getenv("SENDER_EMAIL", "your-system-email@gmail.com")
+        sender_password = os.getenv("SENDER_PASSWORD")
+        professor_emails = ["kevinlazarus03@gmail.com"]  # Primary recipient list
 
-    # Find destination professor emails
-    professors = list(users_collection.find({
-        "$or": [
-            {"role": "professor"},
-            {"email": {"$regex": "@bhc\\.professor\\.com$", "$options": "i"}}
-        ]
-    }))
-    
-    admin_emails = [prof["email"] for prof in professors if "email" in prof]
-    print(f"🎯 [EMAIL DEBUG] Found destination professor emails: {admin_emails}")
+        if not sender_password:
+            print("⚠️ [EMAIL ERROR] SENDER_PASSWORD environment variable is missing from system environment!")
+            return
 
-    if not admin_emails:
-        print("⚠️ [EMAIL DEBUG] Notification skipped. No admin emails matched criteria.")
-        return
+        # Format a granular list of infractions for the professor's review
+        violation_report = ""
+        for index, entry in enumerate(violations, 1):
+            ts = entry.get("timestamp")
+            ts_str = ts.strftime("%Y-%m-%d %H:%M:%S") if isinstance(ts, datetime) else str(ts)
+            violation_report += f"  {index}. Type: {entry.get('type')} | Severity: {entry.get('severity')} | Time: {ts_str}\n"
 
-    # 1. Generate the CSV log file strings
-    csv_file = StringIO()
-    writer = csv.writer(csv_file)
-    writer.writerow(['Timestamp', 'Violation Type', 'Severity'])
-    for v in violations:
-        writer.writerow([v.get('timestamp', datetime.now()), v.get('type'), v.get('severity')])
-    
-    # 2. Convert raw CSV text into Base64 format for HTTP JSON transport
-    raw_csv_bytes = csv_file.getvalue().encode('utf-8')
-    b64_csv_content = base64.b64encode(raw_csv_bytes).decode('utf-8')
+        msg = MIMEText(f"""
+Hello Professor,
 
-    # 3. Construct standard transactional email HTTP JSON payload (Brevo format example)
-    email_payload = {
-        "sender": {"email": SENDER_EMAIL, "name": "Proctor System"},
-        "to": [{"email": email} for email in admin_emails],
-        "subject": f"🚨 Disqualification Alert: {name} ({student_id})",
-        "textContent": (
-            f"Student {name} ({student_id}) has been automatically disqualified from quiz {quiz_id} "
-            f"because their violation count went above 2.\n\nSee attached CSV log for historical trace."
-        ),
-        "attachments": [
-            {
-                "content": b64_csv_content,
-                "name": f"violation_log_{student_id}.csv"
-            }
-        ]
-    }
+This is an automated alert from the PQDS Proctoring System.
 
-    headers = {
-        "accept": "application/json",
-        "api-key": API_KEY,
-        "content-type": "application/json"
-    }
+Student '{name}' (ID: {student_id}) has breached the anti-cheat parameters during Quiz ID: {quiz_id} and has been flagged for disqualification.
 
-    # Fire background thread
-    email_thread = threading.Thread(
-        target=send_email_worker_api,
-        args=(email_payload, headers)
-    )
-    email_thread.start()
+Detailed Violations Logged:
+{violation_report}
+
+The student's entry in the structural submissions tables has been updated to 'DISQUALIFIED'.
+
+Best regards,
+PQDS Proctor System
+""")
+        
+        msg['Subject'] = f"🚨 PROCTOR ALERT: Disqualification Triggered - {name}"
+        msg['From'] = sender_email
+        msg['To'] = ", ".join(professor_emails)
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, professor_emails, msg.as_string())
+            
+        print(f"✅ [BACKGROUND EMAIL] Disqualification brief successfully transmitted to {professor_emails}")
+        
+    except Exception as e:
+        print(f"❌ [EMAIL ERROR] Failed to execute background mail transmission: {str(e)}")
+
+
+# ================= PROCTORING VIOLATION ROUTE =================
 
 @app.route("/log_violation", methods=["POST"])
 def log_violation():
-    if "user" not in session:
-        return jsonify({"error": "Unauthorized"}), 401
-
     data = request.json or {}
-    student_id = session["user"]
-    name = session["name"]
-    quiz_id = data.get("quiz_id")
-    v_type = data.get("violation_type")
     
+    # Extract structural constraints safely with fallback scopes
+    v_type = data.get("violation_type")
+    quiz_id = data.get("quiz_id")
+    student_id = data.get("student_id") or session.get("user")
+    name = data.get("name") or session.get("name") or "Unknown Student"
+
+    if not quiz_id or not student_id:
+        return jsonify({"error": "Missing critical parameters: quiz_id or student_id required"}), 400
+
     print(f"📊 [PROCTOR] Received tracking signal - Student: {name}, Quiz: {quiz_id}, Type: {v_type}")
 
     severity_map = {
@@ -1378,24 +1368,27 @@ def log_violation():
         "tab_switch": "mild"
     }
     severity = severity_map.get(v_type, "mild")
-    
+
     violation_record = {
         "type": v_type,
         "severity": severity,
         "timestamp": datetime.now()
     }
-    
+
     # Store violation to tracking session
     db.proctor_sessions.update_one(
         {"quiz_id": quiz_id, "student_id": student_id},
-        {"$push": {"violations": violation_record}},
+        {
+            "$push": {"violations": violation_record},
+            "$setOnInsert": {"email_sent": False}  # Prep email anti-spam protection flag
+        },
         upsert=True
     )
-    
+
     current_session = db.proctor_sessions.find_one({"quiz_id": quiz_id, "student_id": student_id})
     violations = current_session.get("violations", [])
     violation_count = len(violations)
-    
+
     print(f"📈 [PROCTOR] Total logged violations for this attempt: {violation_count}")
 
     disqualified = False
@@ -1417,8 +1410,18 @@ def log_violation():
             upsert=True
         )
         
-        # This will assemble data instantly and trigger the thread background task
-        notify_admin_disqualification(student_id, name, quiz_id, violations)
+        # Prevent repetitive background processing or inbox flood if the script keeps posting warnings
+        if not current_session.get("email_sent", False):
+            db.proctor_sessions.update_one(
+                {"_id": current_session["_id"]},
+                {"$set": {"email_sent": True}}
+            )
+            
+            # Spin notification pipeline to a safe background thread
+            threading.Thread(
+                target=notify_admin_disqualification,
+                args=(student_id, name, quiz_id, violations)
+            ).start()
         
     return jsonify({
         "status": "logged", 
@@ -1426,7 +1429,7 @@ def log_violation():
         "violation_count": violation_count,
         "message": f"{violation_count}/2 violations committed. Next one will disqualify you." if not disqualified else "Disqualified."
     })
-
+    
 @app.route("/privacy")
 def privacy():
     return """
