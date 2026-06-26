@@ -1262,46 +1262,46 @@ def send_final_quiz(chat_id, quiz_id, title, duration):
 
     telegram_sessions.delete_one({"chat_id": chat_id})
 
-# Ensure these imports are active at the top of app.py
+import os
 import csv
+import base64
 from io import StringIO
 from datetime import datetime
 import threading
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
+import requests
 from flask import jsonify, request, session
 
-def send_email_worker(msg, admin_emails):
-    """Actual network task running safely inside an isolated background thread."""
-    if not admin_emails:
-        print("⚠️ [BACKGROUND EMAIL] No destination emails found. Canceling dispatch.")
-        return
-
+def send_email_worker_api(payload, headers):
+    """Executes an outbound HTTP POST request safely in the background."""
     try:
-        print("⚡ [BACKGROUND EMAIL] Connecting to SMTP server...")
-        # Added a 10-second timeout to protect worker health
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10)
-        server.starttls()
-        server.login(SMTP_USER, SMTP_PASS)
+        print("⚡ [BACKGROUND EMAIL] Dispatching alert via HTTP API...")
+        # Replace this URL with your specific provider's API endpoint
+        # e.g., Brevo: https://api.brevo.com/v3/smtp/email
+        # e.g., Resend: https://api.resend.com/emails
+        url = "https://api.brevo.com/v3/smtp/email" 
         
-        print(f"📧 [BACKGROUND EMAIL] Dispatching alert to: {admin_emails}")
-        server.sendmail(SMTP_USER, admin_emails, msg.as_string())
-        server.quit()
-        print("✅ [BACKGROUND EMAIL] Notification sent successfully to all professors!")
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        
+        if response.status_code in [200, 201, 202]:
+            print("✅ [BACKGROUND EMAIL] Notification sent successfully via HTTP API!")
+        else:
+            print(f"❌ [BACKGROUND EMAIL] API rejected mail dispatch: {response.text}")
+            
     except Exception as e:
-        print(f"❌ [BACKGROUND EMAIL] SMTP Connection failed to complete: {str(e)}")
+        print(f"❌ [BACKGROUND EMAIL] HTTP API Request failed: {str(e)}")
 
 def notify_admin_disqualification(student_id, name, quiz_id, violations):
-    """Prepares email payloads and passes off blocking I/O tasks to a background worker."""
-    print("📧 [EMAIL DEBUG] Attempting to prepare email notification...")
-    if not SMTP_USER or not SMTP_PASS:
-        print("❌ [EMAIL DEBUG] SMTP_USER or SMTP_PASS environment variables are completely missing!")
+    """Prepares JSON payload and passes off outbound HTTP request to background thread."""
+    print("📧 [EMAIL DEBUG] Attempting to prepare email notification payload...")
+    
+    API_KEY = os.getenv("EMAIL_API_KEY")
+    SENDER_EMAIL = os.getenv("SMTP_USER") # Keep your existing env variable name or use a new one
+    
+    if not API_KEY or not SENDER_EMAIL:
+        print("❌ [EMAIL DEBUG] EMAIL_API_KEY or SENDER_EMAIL variables are missing!")
         return
 
-    # Broad search matching both explicit professor roles and matching domains
+    # Find destination professor emails
     professors = list(users_collection.find({
         "$or": [
             {"role": "professor"},
@@ -1316,38 +1316,46 @@ def notify_admin_disqualification(student_id, name, quiz_id, violations):
         print("⚠️ [EMAIL DEBUG] Notification skipped. No admin emails matched criteria.")
         return
 
-    # Setup core email structures
-    msg = MIMEMultipart()
-    msg['From'] = SMTP_USER
-    msg['To'] = ", ".join(admin_emails) 
-    msg['Subject'] = f"🚨 Disqualification Alert: {name} ({student_id})"
-
-    body = (
-        f"Student {name} ({student_id}) has been automatically disqualified from quiz {quiz_id} "
-        f"because their violation count went above 2.\n\nSee attached CSV log for historical trace."
-    )
-    msg.attach(MIMEText(body, 'plain'))
-
-    # Generate the log file dynamically
+    # 1. Generate the CSV log file strings
     csv_file = StringIO()
     writer = csv.writer(csv_file)
     writer.writerow(['Timestamp', 'Violation Type', 'Severity'])
     for v in violations:
         writer.writerow([v.get('timestamp', datetime.now()), v.get('type'), v.get('severity')])
     
-    part = MIMEBase('application', 'octet-stream')
-    part.set_payload(csv_file.getvalue().encode('utf-8'))
-    encoders.encode_base64(part)
-    part.add_header('Content-Disposition', f'attachment; filename="violation_log_{student_id}.csv"')
-    msg.attach(part)
+    # 2. Convert raw CSV text into Base64 format for HTTP JSON transport
+    raw_csv_bytes = csv_file.getvalue().encode('utf-8')
+    b64_csv_content = base64.b64encode(raw_csv_bytes).decode('utf-8')
 
-    # Fire and forget: Hand the payload to the asynchronous background worker
+    # 3. Construct standard transactional email HTTP JSON payload (Brevo format example)
+    email_payload = {
+        "sender": {"email": SENDER_EMAIL, "name": "Proctor System"},
+        "to": [{"email": email} for email in admin_emails],
+        "subject": f"🚨 Disqualification Alert: {name} ({student_id})",
+        "textContent": (
+            f"Student {name} ({student_id}) has been automatically disqualified from quiz {quiz_id} "
+            f"because their violation count went above 2.\n\nSee attached CSV log for historical trace."
+        ),
+        "attachments": [
+            {
+                "content": b64_csv_content,
+                "name": f"violation_log_{student_id}.csv"
+            }
+        ]
+    }
+
+    headers = {
+        "accept": "application/json",
+        "api-key": API_KEY,
+        "content-type": "application/json"
+    }
+
+    # Fire background thread
     email_thread = threading.Thread(
-        target=send_email_worker,
-        args=(msg, admin_emails)
+        target=send_email_worker_api,
+        args=(email_payload, headers)
     )
     email_thread.start()
-
 
 @app.route("/log_violation", methods=["POST"])
 def log_violation():
