@@ -1292,11 +1292,20 @@ def send_email_worker_api(payload, headers):
     except Exception as e:
         print(f"❌ [BACKGROUND EMAIL] HTTP API Request failed: {str(e)}")
 
+
+# ================= ADMINISTRATIVE EMAIL DISPATCHER =================
+
 def notify_admin_disqualification(student_id, name, quiz_id, violations):
     """
     Assembles and transmits a structured alert detailing the exact tracking infractions
     that led to the student's disqualification.
     """
+    # Inline imports to prevent any scope or configuration NameErrors
+    import os
+    import smtplib
+    from datetime import datetime
+    from email.mime.text import MIMEText  # <--- THIS WAS THE MISSING IMPORT CAUSING THE CRASH
+
     try:
         sender_email = os.getenv("SENDER_EMAIL", "your-system-email@gmail.com")
         sender_password = os.getenv("SENDER_PASSWORD")
@@ -1341,6 +1350,7 @@ PQDS Proctor System
         
     except Exception as e:
         print(f"❌ [EMAIL ERROR] Failed to execute background mail transmission: {str(e)}")
+
 
 
 # ================= PROCTORING VIOLATION ROUTE =================
