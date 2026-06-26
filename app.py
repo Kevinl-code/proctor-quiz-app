@@ -12,6 +12,7 @@ from qrcode.constants import ERROR_CORRECT_H
 import telegram
 
 BASE_URL = os.getenv("BASE_URL", "https://pqds.onrender.com")
+print("🚀 NEW CODE DEPLOYED - BASE_URL FIX ACTIVE")
 
 load_dotenv()
 
@@ -585,8 +586,15 @@ def get_scores():
 
 def generate_styled_qr_card(quiz_id, title, duration):
 
-    BASE_URL = os.getenv("BASE_URL", "https://pqds.onrender.com")
+    import os
+
+    BASE_URL = os.environ.get("BASE_URL")
+    
+    if not BASE_URL:
+        BASE_URL = "https://pqds.onrender.com"
     url = f"{BASE_URL}/join/{quiz_id}"
+
+    
 
     qr = qrcode.QRCode(
         version=None,
@@ -930,6 +938,7 @@ Commands
 
 @app.route("/telegram", methods=["POST"])
 def telegram_webhook():
+    print("BASE_URL =", os.getenv("BASE_URL"))
 
     update = request.json or {}
 
