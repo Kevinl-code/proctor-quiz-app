@@ -1329,7 +1329,7 @@ def log_violation():
         "violation_count": violation_count,
         "message": f"Warning! You have {violation_count}/2 allowed violations." if not disqualified else "You have been disqualified."
     })
-
+   notify_admin_disqualification(student_id, name, quiz_id, violations)
 
 def notify_admin_disqualification(student_id, name, quiz_id, violations):
     if not SMTP_USER or not SMTP_PASS:
