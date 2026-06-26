@@ -584,7 +584,8 @@ def get_scores():
     return jsonify(data)
 
 
-def generate_styled_qr_card(quiz_id, title, duration):
+def generate_styled_qr_card(quiz_id, title, duration, base_url):
+    url = f"{base_url}/join/{quiz_id}"
     
     print("🔥 QR FUNCTION CALLED")
     print("🔥 URL =", url)
@@ -1195,11 +1196,11 @@ def generate_qr(quiz_id):
         return "Quiz not found"
 
     img = generate_styled_qr_card(
-        quiz_id,
-        q["title"],
-        q["duration"]
-    )
-
+    quiz_id,
+    title,
+    duration,
+    os.getenv("BASE_URL", "https://pqds.onrender.com")
+)
     return send_file(img, mimetype="image/png")
     
 
