@@ -457,21 +457,6 @@ def parse_block_questions(lines):
     return result
 
 # ================= QR & ATTEMPTS =================
-@app.route("/generate_qr/<quiz_id>")
-def generate_qr(quiz_id):
-
-    q = quiz.find_one({"quiz_id": quiz_id}, {"_id": 0})
-    if not q:
-        return "Quiz not found"
-
-    img = generate_styled_qr_card(
-        quiz_id,
-        q["title"],
-        q["duration"]
-    )
-
-    return send_file(img, mimetype="image/png")
-    
 @app.route("/quiz_info/<quiz_id>")
 def quiz_info(quiz_id):
     if "user" not in session:
@@ -1165,6 +1150,23 @@ def telegram_webhook():
             return "ok"
 
     return "ok"
+
+@app.route("/generate_qr/<quiz_id>")
+def generate_qr(quiz_id):
+
+    q = quiz.find_one({"quiz_id": quiz_id}, {"_id": 0})
+    if not q:
+        return "Quiz not found"
+
+    img = generate_styled_qr_card(
+        quiz_id,
+        q["title"],
+        q["duration"]
+    )
+
+    return send_file(img, mimetype="image/png")
+    
+
 def create_quiz_from_session(chat_id, data):
 
     quiz_id = str(uuid.uuid4())[:8]
