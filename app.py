@@ -584,10 +584,9 @@ def get_scores():
     return jsonify(data)
 
 
-def generate_styled_qr_card(quiz_id, title, duration):
-    BASE_URL = os.getenv("BASE_URL", "https://pqds.onrender.com")
-    join_url = f"{BASE_URL}/join/{quiz_id}"
+def generate_styled_qr_card(quiz_id, title, duration, base_url):
 
+    url = f"{base_url}/join/{quiz_id}"
 
     qr = qrcode.QRCode(
         version=None,
@@ -604,6 +603,7 @@ def generate_styled_qr_card(quiz_id, title, duration):
         back_color="white"
     ).convert("RGBA").resize((200, 200))
 
+    # logo (safe fail)
     try:
         logo = Image.open("static/images/logo.png").convert("RGBA")
         logo_size = 50
@@ -651,7 +651,7 @@ def generate_styled_qr_card(quiz_id, title, duration):
 
     draw = ImageDraw.Draw(card)
 
-    draw.text((90, 20), "Quiz ID: " + quiz_id, fill="white", font=font_small)
+    draw.text((90, 20), f"Quiz ID: {quiz_id}", fill="white", font=font_small)
     draw.text((70, 45), title[:20], fill="white", font=font_title)
     draw.text((60, 70), f"Duration: {duration} mins", fill="white", font=font_small)
     draw.text((80, 320), "Scan to Join", fill="white", font=font_small)
@@ -661,7 +661,7 @@ def generate_styled_qr_card(quiz_id, title, duration):
     img_io.seek(0)
 
     return img_io
-    
+
 # ================= TELEGRAM KEYBOARDS =================
 
 def main_menu_kb():
@@ -1221,27 +1221,41 @@ def create_quiz_from_session(chat_id, data):
 
     return quiz_id
 
-
 def send_final_quiz(chat_id, quiz_id, title, duration):
 
     BASE_URL = os.getenv("BASE_URL", "https://pqds.onrender.com")
     join_url = f"{BASE_URL}/join/{quiz_id}"
 
     img = generate_styled_qr_card(
-    quiz_id,
-    title,
-    duration
-)
+        quiz_id,
+        title,
+        duration,
+        BASE_URL
+    )
+
+    keyboard = {
+        "inline_keyboard": [
+            [
+                {"text": "🚀 Join Quiz", "url": join_url}
+            ],
+            [
+                {"text": "📊 Open Dashboard", "url": f"{BASE_URL}/dashboard"}
+            ]
+        ]
+    }
 
     send_message(
         chat_id,
-        f"✅ Quiz Created Successfully!\n\n🔗 Link:\n{join_url}"
+        f"✅ Quiz Created!\n\n📝 {title}\n⏱ {duration} mins\n\n🔗 Join instantly below:",
+        keyboard
     )
 
-    send_photo(chat_id, img)
+    send_photo(chat_id, img, keyboard)
 
     telegram_sessions.delete_one({"chat_id": chat_id})
-    
+
+
+
 @app.route("/privacy")
 def privacy():
     return """
