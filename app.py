@@ -583,7 +583,7 @@ def get_scores():
 
 def generate_styled_qr_card(quiz_id, title, duration):
 
-    BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:5000")
+    BASE_URL = os.getenv("BASE_URL", "https://pqds.onrender.com")
     url = f"{BASE_URL}/join/{quiz_id}"
 
     qr = qrcode.QRCode(
