@@ -61,17 +61,17 @@
 
 </div>
 <script>
-    // A flag to prevent spamming the backend if multiple events fire at once
     let isProcessingViolation = false;
 
-    // The quiz_id needs to be passed from your template. 
-    // Assuming you have it as a JavaScript variable or hidden input.
-    // Replace 'YOUR_QUIZ_ID_VARIABLE' with how you access the quiz ID in JS.
-    const currentQuizId = "YOUR_QUIZ_ID_VARIABLE"; 
+    // Dynamically extract the quiz_id from the browser URL path automatically
+    const pathSegments = window.location.pathname.split('/');
+    const currentQuizId = pathSegments[pathSegments.length - 1]; 
 
     function triggerViolation(violationType) {
         if (isProcessingViolation) return;
         isProcessingViolation = true;
+
+        console.log(`Sending violation: ${violationType} for Quiz: ${currentQuizId}`);
 
         fetch('/log_violation', {
             method: 'POST',
@@ -86,15 +86,13 @@
         .then(response => response.json())
         .then(data => {
             if (data.disqualified) {
-                // Show disqualification popup and kick the user out
-                alert("🚨 YOU HAVE BEEN DISQUALIFIED! 🚨\n\nYour professor has been notified via email.");
-                window.location.href = "/student"; // Redirect to dashboard
+                alert("🚨 YOU HAVE BEEN AUTOMATICALLY DISQUALIFIED! 🚨\n\nYour limit of 2 allowed violations has been breached. Your professor has been alerted.");
+                window.location.href = "/student"; 
             } else {
-                // Show warning popup to the user
-                alert("⚠️ WARNING! " + violationType + " detected.\n\n" + data.message);
+                alert(`⚠️ PROCTOR WARNING!\n\nViolation detected: ${violationType}\nStatus: ${data.message}`);
             }
             
-            // Allow new violations to be logged after a 3-second cooldown
+            // 3-second cooldown to avoid button/tab spamming
             setTimeout(() => { isProcessingViolation = false; }, 3000);
         })
         .catch(error => {
@@ -103,14 +101,14 @@
         });
     }
 
-    // EVENT 1: Detect Tab Switch or Minimizing the Browser
+    // Detect Tab Switches / Minimizing
     document.addEventListener("visibilitychange", () => {
         if (document.hidden) {
             triggerViolation('tab_switch');
         }
     });
 
-    // EVENT 2: Detect clicking outside the browser window (e.g., opening another app)
+    // Detect App Switches / Clicking Outside Browser Window
     window.addEventListener("blur", () => {
         triggerViolation('app_switch');
     });
