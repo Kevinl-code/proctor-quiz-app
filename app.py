@@ -1276,23 +1276,24 @@ from flask import jsonify, request, session
 def send_email_worker_api(payload, headers):
     """Executes an outbound HTTP POST request safely in the background."""
     try:
-        print("⚡ [BACKGROUND EMAIL] Dispatching alert via HTTP API...")
-        # Replace this URL with your specific provider's API endpoint
-        # e.g., Brevo: https://api.brevo.com/v3/smtp/email
-        # e.g., Resend: https://api.resend.com/emails
-        url = "https://api.brevo.com/v3/smtp/email" 
+        # 1. Log immediately when the thread wakes up
+        print("⚡ [BACKGROUND EMAIL] Dispatching alert via HTTP API...", flush=True)
         
+        url = "https://api.brevo.com/v3/smtp/email" 
         response = requests.post(url, json=payload, headers=headers, timeout=10)
         
+        # 2. Handle API success codes
         if response.status_code in [200, 201, 202]:
-            print("✅ [BACKGROUND EMAIL] Notification sent successfully via HTTP API!")
+            print("✅ [BACKGROUND EMAIL] Notification sent successfully via HTTP API!", flush=True)
+        
+        # 3. Handle API rejection codes (e.g., 401 Unauthorized, 400 Bad Request)
         else:
-            print(f"❌ [BACKGROUND EMAIL] API rejected mail dispatch: {response.text}")
+            print(f"❌ [BACKGROUND EMAIL] API rejected mail dispatch: {response.text}", flush=True)
             
     except Exception as e:
-        print(f"❌ [BACKGROUND EMAIL] HTTP API Request failed: {str(e)}")
-
-
+        # 4. Handle total network/code failures (e.g., timeout, DNS down)
+        print(f"❌ [EMAIL ERROR] HTTP API Request failed: {str(e)}", flush=True)
+        
 # ================= ADMINISTRATIVE EMAIL DISPATCHER =================
 
 def notify_admin_disqualification(student_id, name, quiz_id, violations):
@@ -1428,10 +1429,12 @@ def log_violation():
             )
             
             # Spin notification pipeline to a safe background thread
-            threading.Thread(
-                target=notify_admin_disqualification,
+            import threading
+            email_thread = threading.Thread(
+                target=notify_admin_disqualification, 
                 args=(student_id, name, quiz_id, violations)
-            ).start()
+            )
+            email_thread.start()
         
     return jsonify({
         "status": "logged", 
