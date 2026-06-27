@@ -1572,7 +1572,7 @@ def handle_proctor_logging(student_id, quiz_id, name, violation_count, new_viola
 # FLASK INTERFACE ROUTE (WITH UNIQUE FUNCTION NAME)
 # =====================================================================
 @app.route('/log_violation', methods=['POST'])
-def handle_incoming_violation_endpoint():  # <-- Renamed this to prevent the crash
+def handle_incoming_violation_endpoint():
     data = request.json or {}
     
     student_id = data.get("student_id")
@@ -1584,18 +1584,23 @@ def handle_incoming_violation_endpoint():  # <-- Renamed this to prevent the cra
         return jsonify({"status": "error", "message": "Missing validation requirements."}), 400
 
     # ─── BACKEND AUTO-INCREMENT LOGIC ───
+    # Look up what the database actually has on file for this student right now
     existing_submission = db.submissions.find_one({"quiz_id": quiz_id, "student_id": student_id})
     prior_count = existing_submission.get("violation_count", 0) if existing_submission else 0
     
+    # Auto-increment the count on the backend safely
     violation_count = prior_count + 1
+    
+    # Rule definition: if they hit 2 or more violations, they are instantly disqualified
     disqualified = violation_count >= 2
     
+    # Fetch background matching context tracking logs safely
     current_session = db.proctor_sessions.find_one({"student_id": student_id, "quiz_id": quiz_id})
     
+    # Fire off execution tracking updates
     return handle_proctor_logging(
         student_id, quiz_id, name, violation_count, new_violations, disqualified, current_session, db
-    )
-    
+    )    
 @app.route("/privacy")
 def privacy():
     return """
