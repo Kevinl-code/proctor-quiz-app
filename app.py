@@ -1261,70 +1261,60 @@ def send_final_quiz(chat_id, quiz_id, title, duration):
     send_photo(chat_id, img, keyboard)
 
     telegram_sessions.delete_one({"chat_id": chat_id})
-
 import os
-import csv
-import base64
-from io import StringIO
-from datetime import datetime
 import threading
 import requests
-from flask import jsonify, request, session
+from datetime import datetime
+from flask import jsonify, request
 
-
-
+# =====================================================================
+# FUNCTION 1: THE CORE HTTP API BACKGROUND WORKER
+# =====================================================================
 def send_email_worker_api(payload, headers):
-    """Executes an outbound HTTP POST request safely in the background."""
+    """
+    Executes the synchronous HTTP POST request to Brevo's REST API.
+    Runs entirely within a background thread to prevent blocking main execution.
+    """
     try:
-        # 1. Log immediately when the thread wakes up
-        print("⚡ [BACKGROUND EMAIL] Dispatching alert via HTTP API...", flush=True)
-        
-        url = "https://api.brevo.com/v3/smtp/email" 
+        url = "https://api.brevo.com/v3/smtp/email"
         response = requests.post(url, json=payload, headers=headers, timeout=10)
         
-        # 2. Handle API success codes
         if response.status_code in [200, 201, 202]:
-            print("✅ [BACKGROUND EMAIL] Notification sent successfully via HTTP API!", flush=True)
-        
-        # 3. Handle API rejection codes (e.g., 401 Unauthorized, 400 Bad Request)
+            print("✅ [EMAIL SUCCESS] Disqualification alert transmitted via Brevo HTTP API.")
         else:
-            print(f"❌ [BACKGROUND EMAIL] API rejected mail dispatch: {response.text}", flush=True)
+            print(f"❌ [EMAIL API ERROR] Brevo rejected payload. Status: {response.status_code} | Response: {response.text}")
             
+    except requests.exceptions.RequestException as e:
+        print(f"❌ [EMAIL NETWORK ERROR] Failed to connect to Brevo API endpoints: {str(e)}")
     except Exception as e:
-        # 4. Handle total network/code failures (e.g., timeout, DNS down)
-        print(f"❌ [EMAIL ERROR] HTTP API Request failed: {str(e)}", flush=True)
-        
-# ================= ADMINISTRATIVE EMAIL DISPATCHER =================
+        print(f"❌ [EMAIL CRITICAL FAILURE] Unexpected error in worker thread: {str(e)}")
 
+
+# =====================================================================
+# FUNCTION 2: THE PAYLOAD & LOGISTICS ASSEMBLER
+# =====================================================================
 def notify_admin_disqualification(student_id, name, quiz_id, violations):
     """
-    Assembles and transmits a structured alert detailing the exact tracking infractions
-    that led to the student's disqualification.
+    Constructs the tracking log text and maps the structured JSON payload 
+    required by Brevo's API schema, then calls the execution worker.
     """
-    # Inline imports to prevent any scope or configuration NameErrors
-    import os
-    import smtplib
-    from datetime import datetime
-    from email.mime.text import MIMEText  # <--- THIS WAS THE MISSING IMPORT CAUSING THE CRASH
+    brevo_api_key = os.getenv("EMAIL_API_KEY")
+    sender_email = os.getenv("SENDER_EMAIL", "analytixfest2k2x@gmail.com")
+    professor_emails = ["kevinlazarus03@gmail.com"]  # Target administrative inbox
 
-    try:
-        sender_email = os.getenv("SENDER_EMAIL", "analytixfest2k2x@gmail.com")
-        sender_password = os.getenv("SENDER_PASSWORD")
-        professor_emails = ["kevinlazarus03@gmail.com"]  # Primary recipient list
+    if not brevo_api_key:
+        print("⚠️ [EMAIL CONFIG ERROR] BREVO_API_KEY environment variable is missing!")
+        return
 
-        if not sender_password:
-            print("⚠️ [EMAIL ERROR] SENDER_PASSWORD environment variable is missing from system environment!")
-            return
+    # 1. Compile chronological list of system infractions
+    violation_report = ""
+    for index, entry in enumerate(violations, 1):
+        ts = entry.get("timestamp")
+        ts_str = ts.strftime("%Y-%m-%d %H:%M:%S") if isinstance(ts, datetime) else str(ts)
+        violation_report += f"  {index}. Type: {entry.get('type')} | Severity: {entry.get('severity')} | Time: {ts_str}\n"
 
-        # Format a granular list of infractions for the professor's review
-        violation_report = ""
-        for index, entry in enumerate(violations, 1):
-            ts = entry.get("timestamp")
-            ts_str = ts.strftime("%Y-%m-%d %H:%M:%S") if isinstance(ts, datetime) else str(ts)
-            violation_report += f"  {index}. Type: {entry.get('type')} | Severity: {entry.get('severity')} | Time: {ts_str}\n"
-
-        msg = MIMEText(f"""
-Hello Professor,
+    # 2. Build the email body text
+    email_body = f"""Hello Professor,
 
 This is an automated alert from the PQDS Proctoring System.
 
@@ -1337,105 +1327,70 @@ The student's entry in the structural submissions tables has been updated to 'DI
 
 Best regards,
 PQDS Proctor System
-""")
-        
-        msg['Subject'] = f"🚨 PROCTOR ALERT: Disqualification Triggered - {name}"
-        msg['From'] = sender_email
-        msg['To'] = ", ".join(professor_emails)
+"""
 
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, professor_emails, msg.as_string())
-            
-        print(f"✅ [BACKGROUND EMAIL] Disqualification brief successfully transmitted to {professor_emails}")
-        
-    except Exception as e:
-        print(f"❌ [EMAIL ERROR] Failed to execute background mail transmission: {str(e)}")
-
-
-
-# ================= PROCTORING VIOLATION ROUTE =================
-
-@app.route("/log_violation", methods=["POST"])
-def log_violation():
-    data = request.json or {}
-    
-    # Extract structural constraints safely with fallback scopes
-    v_type = data.get("violation_type")
-    quiz_id = data.get("quiz_id")
-    student_id = data.get("student_id") or session.get("user")
-    name = data.get("name") or session.get("name") or "Unknown Student"
-
-    if not quiz_id or not student_id:
-        return jsonify({"error": "Missing critical parameters: quiz_id or student_id required"}), 400
-
-    print(f"📊 [PROCTOR] Received tracking signal - Student: {name}, Quiz: {quiz_id}, Type: {v_type}")
-
-    severity_map = {
-        "screenshot": "severe",
-        "record": "severe",
-        "app_switch": "moderate",
-        "minimize": "moderate",
-        "tab_switch": "mild"
-    }
-    severity = severity_map.get(v_type, "mild")
-
-    violation_record = {
-        "type": v_type,
-        "severity": severity,
-        "timestamp": datetime.now()
-    }
-
-    # Store violation to tracking session
-    db.proctor_sessions.update_one(
-        {"quiz_id": quiz_id, "student_id": student_id},
-        {
-            "$push": {"violations": violation_record},
-            "$setOnInsert": {"email_sent": False}  # Prep email anti-spam protection flag
+    # 3. Formulate structural mapping matching Brevo API specs
+    payload = {
+        "sender": {
+            "name": "PQDS Proctor System",
+            "email": sender_email
         },
+        "to": [{"email": email} for email in professor_emails],
+        "subject": f"🚨 PROCTOR ALERT: Disqualification Triggered - {name}",
+        "textContent": email_body
+    }
+
+    headers = {
+        "accept": "application/json",
+        "api-key": brevo_api_key,
+        "content-type": "application/json"
+    }
+
+    # 4. Route payload processing sequentially inside this current background thread
+    send_email_worker_api(payload, headers)
+
+
+# =====================================================================
+# FUNCTION 3: THE PROCTOR VIOLATION ROUTE / COMPONENT
+# =====================================================================
+def handle_proctor_logging(student_id, quiz_id, name, violation_count, violations, disqualified, current_session, db):
+    """
+    Handles MongoDB records updates, checks state to prevent notification spam,
+    and cleanly detaches the email task to an independent execution thread.
+    """
+    
+    # 1. Synchronize data status flags in the database
+    db.submissions.update_one(
+        {"quiz_id": quiz_id, "student_id": student_id},
+        {"$set": {
+            "quiz_id": quiz_id,
+            "student_id": student_id,
+            "name": name,
+            "status": "DISQUALIFIED",
+            "violation_count": violation_count,
+            "timestamp": datetime.now()
+        }},
         upsert=True
     )
-
-    current_session = db.proctor_sessions.find_one({"quiz_id": quiz_id, "student_id": student_id})
-    violations = current_session.get("violations", [])
-    violation_count = len(violations)
-
-    print(f"📈 [PROCTOR] Total logged violations for this attempt: {violation_count}")
-
-    disqualified = False
-    if violation_count > 2 or severity == "severe":
-        disqualified = True
-        print(f"🚨 [PROCTOR] Disqualification threshold breached for user {name}!")
-        
-        # Log to structural submission tables
-        submissions.update_one(
-            {"quiz_id": quiz_id, "student_id": student_id},
-            {"$set": {
-                "quiz_id": quiz_id,
-                "student_id": student_id,
-                "name": name,
-                "status": "DISQUALIFIED",
-                "violation_count": violation_count,
-                "timestamp": datetime.now()
-            }},
-            upsert=True
+    
+    # 2. Evaluate if a tracking alert thread has already been spawned for this user session
+    if not current_session.get("email_sent", False):
+        db.proctor_sessions.update_one(
+            {"_id": current_session["_id"]},
+            {"$set": {"email_sent": True}}
         )
         
-        # Prevent repetitive background processing or inbox flood if the script keeps posting warnings
-        if not current_session.get("email_sent", False):
-            db.proctor_sessions.update_one(
-                {"_id": current_session["_id"]},
-                {"$set": {"email_sent": True}}
-            )
-            
-            # Spin notification pipeline to a safe background thread
-            import threading
-            email_thread = threading.Thread(
-                target=notify_admin_disqualification, 
-                args=(student_id, name, quiz_id, violations)
-            )
-            email_thread.start()
+        # Spin notification pipeline out to a safe background thread to isolate Flask from network latency
+        email_thread = threading.Thread(
+            target=notify_admin_disqualification, 
+            args=(student_id, name, quiz_id, violations)
+        )
+        email_thread.daemon = True  # Ensures thread closes smoothly if app reloads
+        email_thread.start()
         
+        print(f"⚡ [PROCTOR] Offloaded background tracking pipeline successfully for {name}.")
+    
+    # 3. Respond immediately to the frontend client
     return jsonify({
         "status": "logged", 
         "disqualified": disqualified,
@@ -1452,7 +1407,7 @@ def privacy():
         <h1>PQDS Privacy Policy</h1>
         <p>PQDS Quiz Bot collects only necessary data such as quiz details, questions uploaded, student scores, and activity logs.</p>
         <p>We do NOT sell or share your data with third parties.</p>
-        <p>Contact: pqds.support@gmail.com</p>
+        <email>kevinlazarus03@gmail.com</email>
     </body>
     </html>
     """
