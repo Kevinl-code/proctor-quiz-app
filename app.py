@@ -1261,6 +1261,7 @@ def send_final_quiz(chat_id, quiz_id, title, duration):
     send_photo(chat_id, img, keyboard)
 
     telegram_sessions.delete_one({"chat_id": chat_id})
+
 import os
 import threading
 import requests
@@ -1272,8 +1273,8 @@ from flask import jsonify, request
 # =====================================================================
 def send_email_worker_api(payload, headers):
     """
-    Executes the synchronous HTTP POST request to Brevo's REST API.
-    Runs entirely within a background thread to prevent blocking main execution.
+    Executes the synchronous HTTP POST request to Brevo's REST API endpoints.
+    Runs entirely within a background thread to prevent blocking main execution loops.
     """
     try:
         url = "https://api.brevo.com/v3/smtp/email"
@@ -1298,12 +1299,13 @@ def notify_admin_disqualification(student_id, name, quiz_id, violations):
     Constructs the tracking log text and maps the structured JSON payload 
     required by Brevo's API schema, then calls the execution worker.
     """
-    brevo_api_key = os.getenv("EMAIL_API_KEY")
+    # Fallback checking ensures lookups work regardless if you named it BREVO_API_KEY or EMAIL_API_KEY
+    brevo_api_key = os.getenv("BREVO_API_KEY") or os.getenv("EMAIL_API_KEY")
     sender_email = os.getenv("SENDER_EMAIL", "analytixfest2k2x@gmail.com")
     professor_emails = ["kevinlazarus03@gmail.com"]  # Target administrative inbox
 
     if not brevo_api_key:
-        print("⚠️ [EMAIL CONFIG ERROR] BREVO_API_KEY environment variable is missing!")
+        print("⚠️ [EMAIL CONFIG ERROR] Both BREVO_API_KEY and EMAIL_API_KEY environment variables are missing!")
         return
 
     # 1. Compile chronological list of system infractions
@@ -1318,7 +1320,7 @@ def notify_admin_disqualification(student_id, name, quiz_id, violations):
 
 This is an automated alert from the PQDS Proctoring System.
 
-Student '{name}' (ID: {student_id}) has breached the anti-cheat parameters during Quiz ID: {quiz_id} and has been flagged for disqualification.
+Student '{name}' (ID: {student_id}) has breached the anti-cheat parameters during Quiz ID: {quiz_id} and has been officially DISQUALIFIED.
 
 Detailed Violations Logged:
 {violation_report}
@@ -1351,7 +1353,7 @@ PQDS Proctor System
 
 
 # =====================================================================
-# FUNCTION 3: THE PROCTOR VIOLATION ROUTE / COMPONENT
+# FUNCTION 3: THE PROCTOR VIOLATION LOGIC PIPELINE
 # =====================================================================
 def handle_proctor_logging(student_id, quiz_id, name, violation_count, violations, disqualified, current_session, db):
     """
@@ -1359,6 +1361,9 @@ def handle_proctor_logging(student_id, quiz_id, name, violation_count, violation
     and cleanly detaches the email task to an independent execution thread.
     """
     
+    # FIX 1: Set database status dynamically based on the student's true standing
+    determined_status = "DISQUALIFIED" if disqualified else "ACTIVE_WARNING"
+
     # 1. Synchronize data status flags in the database
     db.submissions.update_one(
         {"quiz_id": quiz_id, "student_id": student_id},
@@ -1366,15 +1371,15 @@ def handle_proctor_logging(student_id, quiz_id, name, violation_count, violation
             "quiz_id": quiz_id,
             "student_id": student_id,
             "name": name,
-            "status": "DISQUALIFIED",
+            "status": determined_status,
             "violation_count": violation_count,
             "timestamp": datetime.now()
         }},
         upsert=True
     )
     
-    # 2. Evaluate if a tracking alert thread has already been spawned for this user session
-    if not current_session.get("email_sent", False):
+    # FIX 2 & 3: Handle missing sessions gracefully and ONLY email if the student is actually disqualified
+    if disqualified and current_session and not current_session.get("email_sent", False):
         db.proctor_sessions.update_one(
             {"_id": current_session["_id"]},
             {"$set": {"email_sent": True}}
@@ -1388,16 +1393,38 @@ def handle_proctor_logging(student_id, quiz_id, name, violation_count, violation
         email_thread.daemon = True  # Ensures thread closes smoothly if app reloads
         email_thread.start()
         
-        print(f"⚡ [PROCTOR] Offloaded background tracking pipeline successfully for {name}.")
+        print(f"⚡ [PROCTOR] Offloaded background tracking pipeline successfully for disqualified student {name}.")
     
-    # 3. Respond immediately to the frontend client
+    # 2. Respond immediately to the frontend client to render alerts on screen
     return jsonify({
         "status": "logged", 
         "disqualified": disqualified,
         "violation_count": violation_count,
-        "message": f"{violation_count}/2 violations committed. Next one will disqualify you." if not disqualified else "Disqualified."
+        "message": f"Disqualified." if disqualified else f"{violation_count}/2 violations committed. Next one will disqualify you."
     })
+
+
+# =====================================================================
+# FLASK INTERFACE ROUTE
+# =====================================================================
+@app.route('/log_violation', methods=['POST'])
+def log_violation_route():
+    data = request.json or {}
     
+    # Extract variables from the incoming JSON request
+    student_id = data.get("student_id")
+    quiz_id = data.get("quiz_id")
+    name = data.get("name")
+    violation_count = data.get("violation_count", 0)
+    violations = data.get("violations", [])
+    disqualified = data.get("disqualified", False)
+    
+    # Fetch current session safely from database
+    current_session = db.proctor_sessions.find_one({"student_id": student_id, "quiz_id": quiz_id})
+    
+    # Run the processing core
+    return handle_proctor_logging(student_id, quiz_id, name, violation_count, violations, disqualified, current_session, db)
+
 @app.route("/privacy")
 def privacy():
     return """
