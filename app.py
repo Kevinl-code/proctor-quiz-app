@@ -528,81 +528,74 @@ def get_questions(quiz_id):
     q = list(questions.find({"quiz_id":quiz_id},{"_id":0}))
     return jsonify(q)
 
-@app.route("/submit_quiz",methods=["POST"])
+@app.route("/submit_quiz", methods=["POST"])
 def submit_quiz():
+
     data = request.json
     student_id = session.get("user")
 
-    activity_doc = activity.find_one({
+    # Check if already submitted
+    existing = submissions.find_one({
+        "quiz_id": data["quiz_id"],
+        "student_id": student_id
+    })
 
-    "quiz_id": data["quiz_id"],
-    "student_id": student_id
-
-})
-
-status = "Completed"
-
-if activity_doc:
-
-    if activity_doc.get("status") == "Disqualified":
-        status = "Disqualified"
-        
     if existing:
-        return jsonify({"msg":"Already submitted"})
+        return jsonify({"msg": "Already submitted"})
+
+    # Check activity status
+    activity_doc = activity.find_one({
+        "quiz_id": data["quiz_id"],
+        "student_id": student_id
+    })
+
+    status = "Completed"
+
+    if activity_doc:
+        if activity_doc.get("status") == "Disqualified":
+            status = "Disqualified"
 
     name = session.get("name")
+
+    # Save submission
     submissions.insert_one({
         "quiz_id": data["quiz_id"],
         "student_id": student_id,
         "name": name,
-        "correct":data["correct"],
-        "wrong":data["wrong"],
-        "skipped":data["skipped"]
+        "correct": data["correct"],
+        "wrong": data["wrong"],
+        "skipped": data["skipped"]
     })
 
+    # Save score
     scores.insert_one({
-
         "quiz_id": data["quiz_id"],
         "student_id": student_id,
         "name": name,
-    
         "correct": data["correct"],
         "wrong": data["wrong"],
         "skipped": data["skipped"],
-    
         "result": status
-
     })
 
-     activity.update_one(
+    # Update activity
+    activity.update_one(
+        {
+            "quiz_id": data["quiz_id"],
+            "student_id": student_id
+        },
+        {
+            "$set": {
+                "question_answered": data["correct"] + data["wrong"],
+                "correct": data["correct"],
+                "wrong": data["wrong"],
+                "skipped": data["skipped"]
+            }
+        },
+        upsert=True
+    )
 
-            {
-        
-                "quiz_id": data["quiz_id"],
-                "student_id": student_id
-        
-            },
-        
-            {
-        
-                "$set": {
-        
-                    "question_answered": data["correct"] + data["wrong"],
-        
-                    "correct": data["correct"],
-        
-                    "wrong": data["wrong"],
-        
-                    "skipped": data["skipped"]
-        
-                }
-        
-            },
-        
-            upsert=True
-        
-        )
-    return jsonify({"msg":"submitted successfully"})
+    return jsonify({"msg": "submitted successfully"})
     
 @app.route("/get_activity")
 def get_activity():
