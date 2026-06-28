@@ -533,10 +533,20 @@ def submit_quiz():
     data = request.json
     student_id = session.get("user")
 
-    existing = submissions.find_one({
-        "quiz_id": data["quiz_id"],
-        "student_id": student_id
-    })
+    activity_doc = activity.find_one({
+
+    "quiz_id": data["quiz_id"],
+    "student_id": student_id
+
+})
+
+status = "Completed"
+
+if activity_doc:
+
+    if activity_doc.get("status") == "Disqualified":
+        status = "Disqualified"
+        
     if existing:
         return jsonify({"msg":"Already submitted"})
 
@@ -551,35 +561,72 @@ def submit_quiz():
     })
 
     scores.insert_one({
-        "quiz_id": data["quiz_id"],
-        "student_id": student_id,
-        "name": name,
-        "correct":data["correct"],
-        "wrong":data["wrong"],
-        "skipped":data["skipped"],
-        "result":"completed"
-    })
 
-    activity.insert_one({
         "quiz_id": data["quiz_id"],
         "student_id": student_id,
         "name": name,
-        "question_answered": data["correct"] + data["wrong"],
+    
         "correct": data["correct"],
         "wrong": data["wrong"],
         "skipped": data["skipped"],
-        "violation_type": ", ".join([v["type"] for v in data.get("violations",[])]),
-        "violation_count": len(data.get("violations",[])),
-        "timestamp": datetime.now()
+    
+        "result": status
+
     })
+
+     activity.update_one(
+
+            {
+        
+                "quiz_id": data["quiz_id"],
+                "student_id": student_id
+        
+            },
+        
+            {
+        
+                "$set": {
+        
+                    "question_answered": data["correct"] + data["wrong"],
+        
+                    "correct": data["correct"],
+        
+                    "wrong": data["wrong"],
+        
+                    "skipped": data["skipped"]
+        
+                }
+        
+            },
+        
+            upsert=True
+        
+        )
     return jsonify({"msg":"submitted successfully"})
     
 @app.route("/get_activity")
 def get_activity():
 
-    rows = list(activity.find({}, {"_id": 0}))
+    data = list(
 
-    return jsonify(rows)
+        activity.find({}, {"_id": 0})
+
+    )
+
+    for row in data:
+
+        if "last_violation" in row:
+
+            try:
+
+                row["last_violation"] = row["last_violation"].strftime(
+                    "%d-%m-%Y %H:%M:%S"
+                )
+
+            except:
+                pass
+
+    return jsonify(data)
 
 @app.route("/get_scores")
 def get_scores():
@@ -1266,206 +1313,215 @@ def send_final_quiz(chat_id, quiz_id, title, duration):
     
 import threading
 import requests
-from datetime import datetime
 
-GOOGLE_SCRIPT_URL = os.getenv("GOOGLE_SCRIPT_URL")
+GOOGLE_APPS_SCRIPT_URL = os.getenv("GOOGLE_APPS_SCRIPT_URL")
 
 
-def send_email_worker_api(to_email, subject, html_body):
-    """
-    Sends mail through Google Apps Script Web App.
-    Runs in background so Flask never blocks.
-    """
-
-    if not GOOGLE_SCRIPT_URL:
-        print("GOOGLE_SCRIPT_URL not configured")
-        return
+def send_email_worker_api(subject, body, recipients):
 
     try:
+
+        payload = {
+            "subject": subject,
+            "body": body,
+            "recipients": recipients
+        }
+
         requests.post(
-            GOOGLE_SCRIPT_URL,
-            json={
-                "to": to_email,
-                "subject": subject,
-                "html": html_body
-            },
-            timeout=15
+            GOOGLE_APPS_SCRIPT_URL,
+            json=payload,
+            timeout=20
         )
 
     except Exception as e:
         print("Mail Error:", e)
 
+def send_async_mail(subject, body, recipients):
+
+    threading.Thread(
+        target=send_email_worker_api,
+        args=(subject, body, recipients),
+        daemon=True
+    ).start()
+        
 def notify_admin_disqualification(student_email,
                                   student_name,
                                   quiz_id,
-                                  violation_type,
-                                  violation_count):
-    """
-    Sends mail to ALL PROFESSORS.
-    """
+                                  violation_count,
+                                  violation_type):
 
-    professors = users_collection.find(
-        {"role": "professor"},
-        {"email": 1, "name": 1}
+    professors = list(
+        users_collection.find(
+            {"role": "professor"},
+            {"email": 1}
+        )
     )
+
+    recipients = [
+        p["email"]
+        for p in professors
+        if p.get("email")
+    ]
+
+    if not recipients:
+        return
 
     subject = f"🚨 Student Disqualified | {student_name}"
 
-    html = f"""
-    <h2>Quiz Disqualification Alert</h2>
+    body = f"""
+Student Name : {student_name}
+Student Email : {student_email}
 
-    <table border='1' cellpadding='8' cellspacing='0'>
+Quiz ID : {quiz_id}
 
-    <tr>
-    <td><b>Student</b></td>
-    <td>{student_name}</td>
-    </tr>
+Status : DISQUALIFIED
 
-    <tr>
-    <td><b>Email</b></td>
-    <td>{student_email}</td>
-    </tr>
+Violation Count : {violation_count}
 
-    <tr>
-    <td><b>Quiz</b></td>
-    <td>{quiz_id}</td>
-    </tr>
+Latest Violation :
+{violation_type}
 
-    <tr>
-    <td><b>Violation</b></td>
-    <td>{violation_type}</td>
-    </tr>
+Time :
+{datetime.now()}
+"""
 
-    <tr>
-    <td><b>Total Violations</b></td>
-    <td>{violation_count}</td>
-    </tr>
+    send_async_mail(subject, body, recipients)
 
-    <tr>
-    <td><b>Time</b></td>
-    <td>{datetime.now()}</td>
-    </tr>
 
-    </table>
+def notify_student_warning(student_email,
+                           student_name,
+                           quiz_id,
+                           count,
+                           violation):
 
-    <br>
+    subject = "⚠️ Quiz Proctor Warning"
 
-    Student has crossed the allowed violation limit and has been automatically disqualified.
-    """
+    body = f"""
+Hello {student_name},
 
-    for professor in professors:
+Violation Detected.
 
-        threading.Thread(
-            target=send_email_worker_api,
-            args=(
-                professor["email"],
-                subject,
-                html
-            ),
-            daemon=True
-        ).start()
+Quiz :
+{quiz_id}
+
+Violation :
+{violation}
+
+Current Count :
+{count}/2
+
+One more violation will disqualify you.
+"""
+
+    send_async_mail(subject, body, [student_email])
 
 @app.route("/log_violation", methods=["POST"])
 def log_violation():
 
-    if "user" not in session:
-        return jsonify({"error": "Login Required"}), 401
+    data = request.json
 
-    body = request.json
+    quiz_id = data["quiz_id"]
 
-    quiz_id = body["quiz_id"]
+    violation = data["violation_type"]
 
-    violation = body["violation_type"]
+    student = session.get("user")
 
-    student = session["user"]
+    if not student:
 
-    student_name = session.get("name", "")
+        return jsonify({"error": "login"}), 401
 
-    record = activity.find_one(
+    user = users_collection.find_one(
+        {"email": student}
+    )
+
+    existing = activity.find_one({
+
+        "quiz_id": quiz_id,
+        "student_id": student
+
+    })
+
+    if not existing:
+
+        existing = {
+
+            "quiz_id": quiz_id,
+            "student_id": student,
+            "name": user["name"],
+            "question_answered": 0,
+            "correct": 0,
+            "wrong": 0,
+            "skipped": 0,
+            "violation_count": 0,
+            "status": "Active"
+        }
+
+        activity.insert_one(existing)
+
+    count = existing.get("violation_count", 0) + 1
+
+    status = "Disqualified" if count >= 2 else "Warning"
+
+    activity.update_one(
+
         {
             "quiz_id": quiz_id,
             "student_id": student
+        },
+
+        {
+
+            "$set": {
+
+                "violation_type": violation,
+                "violation_count": count,
+                "status": status,
+                "last_violation": datetime.now()
+
+            }
+
         }
+
     )
 
-    if record:
+    if count < 2:
 
-        count = record.get("violation_count", 0) + 1
+        notify_student_warning(
 
-        types = record.get("violation_type", "")
-
-        types += ", " + violation
-
-        activity.update_one(
-            
-                {
-                    "quiz_id": quiz_id,
-                    "student_id": student_id
-                },
-            
-                {
-            
-                    "$set": {
-            
-                        "last_violation": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            
-                        "status": status,
-            
-                        "violation_type": violation_type
-            
-                    },
-            
-                    "$inc": {
-            
-                        "violation_count": 1
-            
-                    }
-            
-                },
-            
-                upsert=True
-            
-            )
-            
-    else:
-
-        count = 1
-
-        activity.insert_one(
-            {
-                "quiz_id": quiz_id,
-                "student_id": student,
-                "name": student_name,
-                "violation_count": 1,
-                "violation_type": violation,
-                "timestamp": datetime.now()
-            }
-        )
-
-    if count >= 2:
-
-        notify_admin_disqualification(
             student,
-            student_name,
+            user["name"],
             quiz_id,
-            violation,
-            count
+            count,
+            violation
+
         )
 
         return jsonify({
-                "count": count,
-                "disqualified": disqualified,
-                "message": message
-            })
 
-    return jsonify(
-        {
-            "disqualified": False,
+            "status": "warning",
             "count": count,
-            "message": f"Warning {count}/2"
-        }
+            "message": "Warning Issued"
+
+        })
+
+    notify_admin_disqualification(
+
+        student,
+        user["name"],
+        quiz_id,
+        count,
+        violation
+
     )
 
+    return jsonify({
+
+        "status": "disqualified",
+        "count": count,
+        "disqualified": True
+
+    })
+    
 @app.route("/handle_proctor_logging", methods=["POST"])
 def handle_proctor_logging():
 
