@@ -169,6 +169,11 @@ No file selected
 <th>Wrong</th>
 <th>Skipped</th>
 <th>Violation</th>
+   <th>Violation Count</th>
+
+<th>Status</th>
+
+<th>Last Violation</th>
 </tr>
 </thead>
 
@@ -206,6 +211,13 @@ No file selected
 
 </div>
 </div>
+   <script>
+      <td>${item.violation_count}</td>
+
+<td>${item.status}</td>
+
+<td>${item.last_violation}</td>
+   </script>
 
 <!-- LIBRARIES (Placed at END for stability) -->
 <script src="https://cdn.jsdelivr.net/gh/ushelp/EasyQRCodeJS@master/dist/easy.qrcode.min.js"></script>
