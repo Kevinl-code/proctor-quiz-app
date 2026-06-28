@@ -661,149 +661,143 @@ try {
 }
 
 
-
-
-
 // ================= ACTIVITY =================
 
+async function loadActivity() {
 
+    showPanel("activityPanel");
 
-async function loadActivity(){
+    try {
 
+        const res = await fetch("/get_activity");
+        const data = await res.json();
 
+        const table = document.querySelector("#activityTable tbody");
+        table.innerHTML = "";
 
-showPanel("activityPanel")
+        if (!Array.isArray(data) || data.length === 0) {
+            table.innerHTML = `
+            <tr>
+                <td colspan="10" style="text-align:center;">
+                    No Activity Found
+                </td>
+            </tr>`;
+            return;
+        }
 
+        data.forEach(item => {
 
+            table.innerHTML += `
+            <tr>
 
-let res=await fetch("/get_activity")
+                <td>${item.name || "-"}</td>
 
-let data=await res.json()
+                <td>${item.student_id || "-"}</td>
 
+                <td>${item.question_answered ?? 0}</td>
 
+                <td>${item.correct ?? 0}</td>
 
-let table=document.querySelector("#activityTable tbody")
+                <td>${item.wrong ?? 0}</td>
 
-table.innerHTML=""
+                <td>${item.skipped ?? 0}</td>
 
+                <td>${item.violation_type || "-"}</td>
 
+                <td>${item.violation_count ?? 0}</td>
 
-if(data.length===0){
+                <td>
+                    ${
+                        item.status === "Disqualified"
+                        ? "🚫 Disqualified"
+                        : "✅ Active"
+                    }
+                </td>
 
-table.innerHTML=`<tr><td colspan="7">No Activity</td></tr>`
+                <td>${item.last_violation || "-"}</td>
 
-return
+            </tr>`;
+        });
+
+    } catch (err) {
+
+        console.error(err);
+
+        alert("Unable to load activity.");
+
+    }
 
 }
-
-
-
-data.forEach(x=>{
-
-table.innerHTML+=`
-
-<tr>
-
-<td>${x.name||"-"}</td>
-
-<td>${x.student_id||"-"}</td>
-
-<td>${x.question_answered||"-"}</td>
-
-<td>${x.correct||"-"}</td>
-
-<td>${x.wrong||"-"}</td>
-
-<td>${x.skipped||"-"}</td>
-
-<td>${x.violation_type||"-"}</td>
-
-</tr>`
-
-})
-
-
-
-}
-
-
-
-
 
 // ================= SCORE =================
 
+async function loadScore() {
 
+    showPanel("scorePanel");
 
-async function loadScore(){
+    try {
 
+        const res = await fetch("/get_scores");
+        const data = await res.json();
 
+        const table = document.querySelector("#scoreTable tbody");
+        table.innerHTML = "";
 
-showPanel("scorePanel")
+        if (!Array.isArray(data) || data.length === 0) {
 
+            table.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align:center;">
+                    No Scores Available
+                </td>
+            </tr>`;
 
+            return;
 
-let res=await fetch("/get_scores")
+        }
 
-let data=await res.json()
+        data.sort((a,b)=>b.correct-a.correct);
 
+        data.forEach((item,index)=>{
 
+            let badge="🥉";
 
-let table=document.querySelector("#scoreTable tbody")
+            if(index===0) badge="🥇";
+            else if(index===1) badge="🥈";
+            else if(index>2) badge="Bronze";
 
-table.innerHTML=""
+            table.innerHTML+=`
 
+            <tr>
 
+                <td>${index+1}</td>
 
-if(data.length===0){
+                <td>${item.name||"-"}</td>
 
-table.innerHTML=`<tr><td colspan="7">No Scores</td></tr>`
+                <td>${item.student_id||"-"}</td>
 
-return
+                <td>${item.correct??0}</td>
+
+                <td>${item.wrong??0}</td>
+
+                <td>${item.result||"-"}</td>
+
+                <td>${badge}</td>
+
+            </tr>
+
+            `;
+
+        });
+
+    }
+
+    catch(err){
+
+        console.error(err);
+
+        alert("Unable to load scores.");
+
+    }
 
 }
-
-
-
-data.sort((a,b)=>b.correct-a.correct)
-
-
-
-data.forEach((x,i)=>{
-
-
-
-let badge="Bronze"
-
-if(i===0) badge="🥇"
-
-else if(i===1) badge="🥈"
-
-else if(i===2) badge="🥉"
-
-
-
-table.innerHTML+=`
-
-<tr>
-
-<td>${i+1}</td>
-
-<td>${x.name||"-"}</td>
-
-<td>${x.student_id||"-"}</td>
-
-<td>${x.correct}</td>
-
-<td>${x.wrong}</td>
-
-<td>${x.result}</td>
-
-<td>${badge}</td>
-
-</tr>`
-
-})
-
-
-
-} 
