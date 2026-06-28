@@ -1432,13 +1432,11 @@ def log_violation():
             count
         )
 
-        return jsonify(
-            {
-                "disqualified": True,
+        return jsonify({
                 "count": count,
-                "message": "Automatically Disqualified"
-            }
-        )
+                "disqualified": disqualified,
+                "message": message
+            })
 
     return jsonify(
         {
