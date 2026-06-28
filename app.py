@@ -1319,6 +1319,9 @@ def send_email_worker_api(subject, body, recipients):
             "body": body,
             "recipients": recipients
         }
+        print("=" * 50)
+        print(payload)
+        print("=" * 50)
 
         requests.post(
             GOOGLE_APPS_SCRIPT_URL,
