@@ -1561,21 +1561,6 @@ def handle_proctor_logging():
     )
 
 
-print("========== MAIL DEBUG ==========")
-print("Student :", student_name)
-print("Student Email :", student_email)
-print("Professor :", professor_email)
-print("Violation :", violation_type)
-print("Count :", violation_count)
-print("Sending to Apps Script...")
-
-response = requests.post(GOOGLE_APPS_SCRIPT_URL, json=payload)
-
-print("Status :", response.status_code)
-print("Response :", response.text)
-print("================================")
-
-
 @app.route("/privacy")
 def privacy():
     return """
