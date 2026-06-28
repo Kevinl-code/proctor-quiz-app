@@ -573,11 +573,13 @@ def submit_quiz():
         "timestamp": datetime.now()
     })
     return jsonify({"msg":"submitted successfully"})
-
+    
 @app.route("/get_activity")
 def get_activity():
-    data = list(activity.find({},{"_id":0}))
-    return jsonify(data)
+
+    rows = list(activity.find({}, {"_id": 0}))
+
+    return jsonify(rows)
 
 @app.route("/get_scores")
 def get_scores():
@@ -1395,18 +1397,36 @@ def log_violation():
         types += ", " + violation
 
         activity.update_one(
-            {
-                "_id": record["_id"]
-            },
-            {
-                "$set":
+            
                 {
-                    "violation_count": count,
-                    "violation_type": types
-                }
-            }
-        )
-
+                    "quiz_id": quiz_id,
+                    "student_id": student_id
+                },
+            
+                {
+            
+                    "$set": {
+            
+                        "last_violation": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            
+                        "status": status,
+            
+                        "violation_type": violation_type
+            
+                    },
+            
+                    "$inc": {
+            
+                        "violation_count": 1
+            
+                    }
+            
+                },
+            
+                upsert=True
+            
+            )
+            
     else:
 
         count = 1
