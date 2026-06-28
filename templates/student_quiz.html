@@ -73,34 +73,30 @@
 
         console.log(`Sending violation: ${violationType} for Quiz: ${currentQuizId}`);
 
-        fetch('/log_violation', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                quiz_id: currentQuizId,
-                violation_type: violationType
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.disqualified) {
-                alert("🚨 YOU HAVE BEEN AUTOMATICALLY DISQUALIFIED! 🚨\n\nYour limit of 2 allowed violations has been breached. Your professor has been alerted.");
-                window.location.href = "/student"; 
-            } else {
-                alert(`⚠️ PROCTOR WARNING!\n\nViolation detected: ${violationType}\nStatus: ${data.message}`);
-            }
-            
-            // 3-second cooldown to avoid button/tab spamming
-            setTimeout(() => { isProcessingViolation = false; }, 3000);
-        })
-        .catch(error => {
-            console.error("Error logging violation:", error);
-            isProcessingViolation = false;
-        });
-    }
-
+        fetch("/log_violation",{
+             method:"POST",
+             headers:{
+                 "Content-Type":"application/json"
+             },
+             body:JSON.stringify({
+                 quiz_id:currentQuizId,
+                 violation_type:type
+             })
+         })
+         .then(r=>r.json())
+         .then(res=>{
+         
+             alert("Violation Count : "+res.count);
+         
+             if(res.disqualified){
+         
+                 alert("You have been disqualified.");
+         
+                 window.location.href="/student";
+         
+             }
+         
+         });
     // Detect Tab Switches / Minimizing
     document.addEventListener("visibilitychange", () => {
         if (document.hidden) {
