@@ -1,113 +1,330 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
 
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport"
+      content="width=device-width,initial-scale=1.0">
 
 <title>Quiz</title>
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="stylesheet"
+href="{{ url_for('static', filename='css/style.css') }}">
+
 <script src="{{ url_for('static', filename='js/quiz.js') }}" defer></script>
 <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 
 </head>
 
 <body>
-<div style="position:absolute; top:20px; right:20px;">
-   <button href="/logout" class="btn-primary">Logout
+
+<div style="position:absolute;top:20px;right:20px;">
+
+<a href="/logout">
+<button class="btn-primary">
+Logout
 </button>
+</a>
+
 </div>
+
+
 <div class="auth-container">
 
-<img src="/static/images/logo.png" class="page-logo">
+<img src="/static/images/logo.png"
+class="page-logo">
 
 <div class="card wide">
 
-<!-- HEADER -->
-<div style="display:flex; justify-content:space-between; align-items:center">
+<div style="display:flex;
+justify-content:space-between;
+align-items:center;">
 
 <h2 id="quizTitle">Quiz</h2>
 
-<div id="timer" style="font-weight:800; color:#22c55e">
+<div id="timer"
+style="font-weight:800;
+color:#22c55e;">
 00:00
 </div>
 
 </div>
 
-<div class="sub">Answer all questions carefully</div>
+<div class="sub">
+Answer all questions carefully
+</div>
 
-<!-- QUESTION -->
-<div id="questionBox" style="margin-top:20px">
+<div id="questionBox"
+style="margin-top:20px;">
 
 <h3 id="questionText"></h3>
 
-<div id="optionsBox" style="margin-top:15px"></div>
+<div id="optionsBox"
+style="margin-top:15px;"></div>
 
 </div>
 
-<!-- NAVIGATION -->
-<div style="display:flex; justify-content:space-between; margin-top:20px">
 
-<button id="prevBtn" class="btn-secondary" onclick="prevQuestion()">⬅ Previous</button>
+<div style="display:flex;
+justify-content:space-between;
+margin-top:20px;">
 
-<button id="nextBtn" class="btn-primary" onclick="nextQuestion()">Next ➡</button>
+<button
+id="prevBtn"
+class="btn-secondary"
+onclick="prevQuestion()">
 
-<button id="submitBtn" class="btn-primary" style="display:none" onclick="confirmSubmit()">Submit</button>
+⬅ Previous
+
+</button>
+
+<button
+id="nextBtn"
+class="btn-primary"
+onclick="nextQuestion()">
+
+Next ➡
+
+</button>
+
+<button
+id="submitBtn"
+class="btn-primary"
+style="display:none"
+onclick="confirmSubmit()">
+
+Submit
+
+</button>
 
 </div>
 
 </div>
 
 </div>
+
 <script>
-    let isProcessingViolation = false;
 
-    // Dynamically extract the quiz_id from the browser URL path automatically
-    const pathSegments = window.location.pathname.split('/');
-    const currentQuizId = pathSegments[pathSegments.length - 1]; 
+let isProcessingViolation = false;
 
-    function triggerViolation(violationType) {
-        if (isProcessingViolation) return;
-        isProcessingViolation = true;
+let isDisqualified = false;
 
-        console.log(`Sending violation: ${violationType} for Quiz: ${currentQuizId}`);
 
-        fetch("/log_violation",{
-             method:"POST",
-             headers:{
-                 "Content-Type":"application/json"
-             },
-             body:JSON.stringify({
-                 quiz_id:currentQuizId,
-                 violation_type:type
-             })
-         })
-         .then(r=>r.json())
-         .then(res=>{
-         
-             alert("Violation Count : "+res.count);
-         
-             if(res.disqualified){
-         
-                 alert("You have been disqualified.");
-         
-                 window.location.href="/student";
-         
-             }
-         
-         });
-    // Detect Tab Switches / Minimizing
-    document.addEventListener("visibilitychange", () => {
-        if (document.hidden) {
-            triggerViolation('tab_switch');
+const path = window.location.pathname.split("/");
+
+const currentQuizId = path[path.length-1];
+
+
+function triggerViolation(violationType){
+
+    if(isProcessingViolation || isDisqualified){
+        return;
+    }
+
+    isProcessingViolation = true;
+
+    console.log("Violation :",violationType);
+
+    fetch("/log_violation",{
+
+        method:"POST",
+
+        headers:{
+            "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+
+            quiz_id:currentQuizId,
+
+            violation_type:violationType
+
+        })
+
+    })
+
+    .then(res=>res.json())
+
+    .then(data=>{
+
+        console.log(data);
+
+        alert(
+            "⚠ Warning\n\nViolation Count : "
+            + data.count +
+            "/2"
+        );
+
+        if(data.disqualified){
+
+            isDisqualified=true;
+
+            alert(
+                "🚨 You have been automatically disqualified.\n\nYour professor has been notified."
+            );
+
+            window.location.replace("/student");
+
+            return;
+
         }
+
+    })
+
+    .catch(err=>{
+
+        console.error(err);
+
+        alert("Unable to record violation.");
+
+    })
+
+    .finally(()=>{
+
+        setTimeout(()=>{
+
+            isProcessingViolation=false;
+
+        },3000);
+
     });
 
-    // Detect App Switches / Clicking Outside Browser Window
-    window.addEventListener("blur", () => {
-        triggerViolation('app_switch');
-    });
+}
+
+
+// TAB CHANGE
+
+document.addEventListener("visibilitychange",()=>{
+
+    if(document.hidden){
+
+        triggerViolation("tab_switch");
+
+    }
+
+});
+
+
+// WINDOW BLUR
+
+window.addEventListener("blur",()=>{
+
+    triggerViolation("app_switch");
+
+});
+
+
+// COPY
+
+document.addEventListener("copy",(e)=>{
+
+    e.preventDefault();
+
+    triggerViolation("copy_attempt");
+
+});
+
+
+// CUT
+
+document.addEventListener("cut",(e)=>{
+
+    e.preventDefault();
+
+    triggerViolation("cut_attempt");
+
+});
+
+
+// RIGHT CLICK
+
+document.addEventListener("contextmenu",(e)=>{
+
+    e.preventDefault();
+
+    triggerViolation("right_click");
+
+});
+
+
+// F12
+
+document.addEventListener("keydown",(e)=>{
+
+    if(e.key==="F12"){
+
+        e.preventDefault();
+
+        triggerViolation("developer_tools");
+
+    }
+
+});
+
+
+// CTRL+SHIFT+I
+
+document.addEventListener("keydown",(e)=>{
+
+    if(
+
+        e.ctrlKey &&
+        e.shiftKey &&
+        e.key==="I"
+
+    ){
+
+        e.preventDefault();
+
+        triggerViolation("developer_tools");
+
+    }
+
+});
+
+
+// CTRL+SHIFT+J
+
+document.addEventListener("keydown",(e)=>{
+
+    if(
+
+        e.ctrlKey &&
+        e.shiftKey &&
+        e.key==="J"
+
+    ){
+
+        e.preventDefault();
+
+        triggerViolation("developer_console");
+
+    }
+
+});
+
+
+// CTRL+U
+
+document.addEventListener("keydown",(e)=>{
+
+    if(
+
+        e.ctrlKey &&
+        e.key==="u"
+
+    ){
+
+        e.preventDefault();
+
+        triggerViolation("view_source");
+
+    }
+
+});
+
 </script>
+
 </body>
 </html>
