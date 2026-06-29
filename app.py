@@ -1304,33 +1304,43 @@ def send_final_quiz(chat_id, quiz_id, title, duration):
 
     telegram_sessions.delete_one({"chat_id": chat_id})
     
-import threading
 import requests
-
-GOOGLE_APPS_SCRIPT_URL = os.getenv("GOOGLE_APPS_SCRIPT_URL")
-
 
 def send_email_worker_api(subject, body, recipients):
 
     try:
+
+        if isinstance(recipients, str):
+            recipients = [recipients]
 
         payload = {
             "subject": subject,
             "body": body,
             "recipients": recipients
         }
-        print("=" * 50)
-        print(payload)
-        print("=" * 50)
 
-        requests.post(
+        print("\n========== GOOGLE APPS SCRIPT ==========")
+        print(payload)
+        print("========================================")
+
+        response = requests.post(
             GOOGLE_APPS_SCRIPT_URL,
             json=payload,
+            headers={
+                "Content-Type": "application/json"
+            },
             timeout=20
         )
 
+        print("Status :", response.status_code)
+        print("Response :", response.text)
+
+        return response.text
+
     except Exception as e:
-        print("Mail Error:", e)
+
+        print("MAIL ERROR :", str(e))
+        return None
 
 def send_async_mail(subject, body, recipients):
 
@@ -1384,32 +1394,54 @@ Time :
     send_async_mail(subject, body, recipients)
 
 
-def notify_student_warning(student_email,
-                           student_name,
-                           quiz_id,
-                           count,
-                           violation):
+def notify_admin_disqualification(
+        professor_email,
+        professor_name,
+        student_name,
+        student_email,
+        quiz_title,
+        quiz_id,
+        violation,
+        count):
 
-    subject = "⚠️ Quiz Proctor Warning"
+    subject = f"🚨 Student Disqualified - {student_name}"
 
     body = f"""
-Hello {student_name},
+PQDS PROCTORING ALERT
 
-Violation Detected.
+Professor :
+{professor_name}
+
+Student :
+{student_name}
+
+Student Email :
+{student_email}
 
 Quiz :
+{quiz_title}
+
+Quiz ID :
 {quiz_id}
 
 Violation :
 {violation}
 
-Current Count :
-{count}/2
+Violation Count :
+{count}
 
-One more violation will disqualify you.
+Status :
+DISQUALIFIED
+
+Time :
+{datetime.now().strftime('%d-%m-%Y %I:%M:%S %p')}
 """
 
-    send_async_mail(subject, body, [student_email])
+    send_email_worker_api(
+        subject,
+        body,
+        [professor_email]
+    )
 
 @app.route("/log_violation", methods=["POST"])
 def log_violation():
